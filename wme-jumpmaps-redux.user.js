@@ -2,7 +2,7 @@
 // @name         WME JumpMapsRedux
 // @description  Швидкі переходи з WME на інші картографічні ресурси (Bookmarks/Favorites) та навпаки — в окремому вікні. Підтримує OSM, Google, Yandex, 2GIS, Bing, Here, Apple Maps, Mapillary, Wikimapia, Visicom, satellites.pro та інші. Зберігає позицію плаваючої панелі. Не використовує та не копіює сторонні дані, не порушує інтелектуальної власності. Переписано під офіційний WME SDK v2, без залежності від WazeWrap.
 // @license      MIT
-// @version      6.0.0
+// @version      6.1.0
 // @author       skirda, alexletov, Claude (Anthropic)
 // @include      https://*.waze.com/*editor*
 // @include      https://n.maps.yandex.ru/*
@@ -24,7 +24,6 @@
 // @include      http://www.openstreetmap.org/*
 // @include      https://www.openstreetmap.org/*
 // @include      https://www.mapillary.com/*
-// @include      https://map.land.gov.ua/*
 // @include      https://mapilio.com/app*
 // @include      https://kartaview.org/map/*
 // @include      https://www.bing.com/maps*
@@ -35,12 +34,14 @@
 // @include      https://satellites.pro/*
 // @match        https://*.waze.com/*map-editor/*
 // @match        https://*.waze.com/*editor*
-// @match        https://*.waze.com/*beta_editor/*
 // @require      https://cdn.jsdelivr.net/npm/proj4@2.20.8/dist/proj4.js
-// @updateURL    https://raw.githubusercontent.com/SapozhnikUA/WME-JumpMapsRedux/main/wme-jumpmaps-redux.user.js
-// @downloadURL  https://raw.githubusercontent.com/SapozhnikUA/WME-JumpMapsRedux/main/wme-jumpmaps-redux.user.js
 // @grant        none
 // ==/UserScript==
+
+// Based on "WME JumpMaps (Fork by alexletov)"
+// Original: https://greasyfork.org/ru/scripts/416143
+// Original authors: skirda, alexletov
+// License: MIT
 
 /* global proj4, getWmeSdk, SDK_INITIALIZED */
 'use strict';
@@ -50,7 +51,7 @@
 // ═══════════════════════════════════════════════════════════════
 const SCRIPT_ID      = 'wme-jumpmaps';
 const SCRIPT_NAME    = 'WME JumpMapsRedux';
-const SCRIPT_VERSION = '6.0.0';
+const SCRIPT_VERSION = '6.1.0';
 const FLOAT_ID       = 'wmejm-floatbar';
 
 const DEFAULT_LEFT   = '400px';
@@ -96,8 +97,6 @@ let cfg = {
 const DEFAULT_MAPS = {
     // Waze internal — never shown in the bar, used only for link building
     _map_WME    : { save:0, title:'Open in WME',               name:'[WME]',   template:'https://www.waze.com/editor/?env=row&zoomLevel={{zoom}}&lat={{lat}}&lon={{lon}}' },
-    _map_WMEB   : { save:0, title:'Open in WME Beta',          name:'[WMEB]',  template:'https://beta.waze.com/editor/?env=row&zoomLevel={{zoom}}&lat={{lat}}&lon={{lon}}' },
-    _map_LI     : { save:0, title:'Open in LiveMap',           name:'[Live]',  template:'https://www.waze.com/livemap/?zoom={{zoom}}&lon={{lon}}&lat={{lat}}' },
     // Third-party — default ON
     _map_OSM    : { save:1, title:'Open in OSM',               name:'[OSM]',   template:'http://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}' },
     _map_BING   : { save:1, title:'Open in Bing Map',          name:'[Bing]',  template:'http://www.bing.com/maps/?v=2&cp={{lat}}~{{lon}}&lvl={{zoom}}&dir=0&sty=h&form=LMLTEW' },
@@ -116,7 +115,7 @@ const DEFAULT_MAPS = {
     _map_MPLIO  : { save:0, title:'Open in Mapilio',           name:'[MPLIO]', template:'https://mapilio.com/app?lat={{lat}}&lng={{lon}}&zoom={{zoom}}' },
     _map_SC     : { save:0, title:'Open in mapcam.info',       name:'[SC]',    template:'http://mapcam.info/speedcam/?lng={{lon}}&lat={{lat}}&z={{zoom}}&t=OSM' },
     _map_SC2    : { save:0, title:'Open in SpeedCamOnLine',    name:'[SCO]',   template:'http://speedcamonline.ru/view/Rus/{{lat}}/{{lon}}/{{zoom}}' },
-    _map_KADUA  : { save:0, title:'Open in Kadastr UA',        name:'[KADUA]', template:'http://map.land.gov.ua/?cc={{lon}},{{lat}}&z={{zoom}}&l=kadastr' },
+    _map_KAMUA  : { save:1, title:'Open in Camera Ukraine',     name:'[KamUA]', template:'https://checker.waze.com.ua/camera/?lat={{lat}}&lon={{lon}}&zoomLevel={{zoom}}' },
     _map_RE     : { save:0, title:'Open in RosReestr',         name:'[RE]',    template:'https://pkk.rosreestr.ru/#/search/{{lat}},{{lon}}/{{zoom}}' },
     _map_BP     : { save:0, title:'Open in benzin-price.ru',   name:'[BP]',    template:'http://www.benzin-price.ru/m/index.php?lat={{lat}}&lon={{lon}}&distance=1' },
     _map_BM     : { save:0, title:'Open in Baltic Maps',       name:'[BM]',    template:'https://balticmaps.eu/lv/c___{{lon}}-{{lat}}-{{zoom}}/bl___cl' },
@@ -174,7 +173,6 @@ function getLocationType() {
     if (h === 'www.mapillary.com') return 'mry';
     if (h === 'kartaview.org') return 'kview';
     if (h === 'mapilio.com' && p.includes('/app')) return 'mapilio';
-    if (h === 'map.land.gov.ua') return 'kadua';
     if (h === 'www.bing.com' && p.includes('/maps')) return 'bing';
     if (h === 'wego.here.com') return 'here';
     if (h === 'maps.apple.com') return 'apple';
@@ -281,12 +279,6 @@ function getLLZ() {
             zoom = Math.round(parseFloat(qs(href, 'zoom'))) + 1;
             break;
         }
-        case 'kadua': {
-            const cc = qs(href, 'cc');
-            if (cc) { const kl2 = cc.split(','); lon = parseFloat(kl2[0]); lat = parseFloat(kl2[1]); }
-            zoom = parseInt(qs(href, 'z'));
-            break;
-        }
         case 'bing': {
             const bcp = qs(href, 'cp');
             if (bcp) { const bp = bcp.split('~'); lat = parseFloat(bp[0]); lon = parseFloat(bp[1]); }
@@ -341,7 +333,7 @@ function getLLZ() {
 function convertOther2WME(llz) {
     const loc = getLocationType();
     // Sites that store coords in EPSG:3857 (Web Mercator)
-    if (loc === 'bm' || loc === 'kadua') {
+    if (loc === 'bm') {
         const c = proj4('EPSG:3857', 'EPSG:4326', [llz.lon, llz.lat]);
         llz.lon = c[0]; llz.lat = c[1];
     }
@@ -380,9 +372,6 @@ const CITIES_2GIS = [
 ];
 
 function convertWME2Other(id, llz) {
-    // LiveMap uses zoom − 1
-    if (id === '_map_LI') llz.zoom = Math.max(0, llz.zoom - 1);
-
     switch (id) {
 
         case '_map_2GIS': {
@@ -442,7 +431,7 @@ function jumpToMap(mapId) {
     log('jumpToMap()', mapId);
 
     let llz = getLLZ();
-    const goingToWME = mapId === '_map_WME' || mapId === '_map_WMEB';
+    const goingToWME = mapId === '_map_WME';
 
     if (goingToWME) {
         llz = convertOther2WME(llz);
@@ -513,7 +502,7 @@ function buildFloatBar() {
         bar = document.createElement('div');
         bar.id = FLOAT_ID;
         bar.style.cssText = [
-            'position:absolute',
+            'position:fixed',
             `top:${cfg.topOffset}`,
             `left:${cfg.leftOffset}`,
             'z-index:9999',
@@ -538,31 +527,17 @@ function buildFloatBar() {
     let html = `<b>JM&nbsp;${SCRIPT_VERSION}</b>&nbsp;`;
 
     for (const [id, def] of Object.entries(mapDefs)) {
-        if (['_map_WME','_map_WMEB','_map_LI'].includes(id)) continue;
+        if (id === '_map_WME') continue;
         if (!def.save) continue;
         html += `<a data-jmid="${id}" title="${def.title}" `
               + `style="cursor:pointer;text-decoration:none;color:#00547a">${def.name}</a>&nbsp;`;
     }
-
-    // [Live] always visible
-    html += `<a data-jmid="_map_LI" title="Open in LiveMap" `
-          + `style="cursor:pointer;text-decoration:none;color:#00547a">[Live]</a>&nbsp;`;
-
-    // α / β switcher
-    const isMain = location.hostname === 'www.waze.com';
-    html += `<a id="wmejm-sw" title="${isMain ? 'Open in Beta' : 'Open in Main'} editor" `
-          + `style="cursor:pointer;text-decoration:none;color:#00547a;font-size:13px">`
-          + `[${isMain ? '&#946;' : '&#945;'}]</a>`;
 
     bar.innerHTML = html;
 
     // Click handlers
     bar.querySelectorAll('[data-jmid]').forEach(a => {
         a.addEventListener('click', e => { e.preventDefault(); jumpToMap(a.dataset.jmid); });
-    });
-    document.getElementById('wmejm-sw')?.addEventListener('click', e => {
-        e.preventDefault();
-        window.open(getSwitcherHref(), '_jm_switcher');
     });
 }
 
@@ -635,7 +610,7 @@ function createSettingsDOM() {
     root.appendChild(hdr);
 
     for (const [id, def] of Object.entries(mapDefs)) {
-        if (['_map_WME','_map_WMEB','_map_LI'].includes(id)) continue;
+        if (id === '_map_WME') continue;
 
         const row = document.createElement('div');
         row.style.margin = '3px 0';
@@ -722,7 +697,6 @@ function createSettingsDOM() {
         root.appendChild(wrap);
     }
 
-    addOpt('Restore selected after jump', LS.RESTORE, 'restoreSelected');
     addOpt('Debug log',                   LS.DEBUG,   'debug');
     addOpt('Hide floating bar',           LS.HIDE,    'hideWindow', v => {
         const bar = document.getElementById(FLOAT_ID);
@@ -765,7 +739,7 @@ function buildFloatingSettingsFallback() {
     const panel = document.createElement('div');
     panel.id = 'wmejm-settings-panel';
     panel.style.cssText = [
-        'position:absolute',
+        'position:fixed',
         `top:${parseInt(cfg.topOffset) + 30}px`,
         `left:${cfg.leftOffset}`,
         'z-index:10000',
@@ -815,7 +789,6 @@ const INJECT_MAP = {
     wm      : { how:'id',    sel:'wm-Add',                           insert:'append' },
     bm      : { how:'id',    sel:'map_mb',                           insert:'append' },
     osm     : { how:'class', sel:'leaflet-top leaflet-right',        insert:'prepend' },
-    kadua   : { how:'class', sel:'interfaceGuide',                   insert:'after' },
     mry     : { how:'class', sel:'comments',                         insert:'before-parent' },
     mapilio : { how:'class', sel:'MuiBox-root css-i8np4w',           insert:'before' },
     kview   : { how:'class', sel:'map-container mapboxgl-map',       insert:'before' },
@@ -828,7 +801,12 @@ const INJECT_MAP = {
 };
 
 // Sites that use a floating fixed button (unstable DOM / SPA)
-const FLOATING_ICON_SITES = new Set(['bing', 'here', 'apple', 'vcua', 'spro']);
+// All external sites use a floating fixed button — no brittle DOM anchor needed
+const FLOATING_ICON_SITES = new Set([
+    'NM', 'YM', 'google', '2gis', 're', 'sc', 'sco', 'wm', 'bm',
+    'osm', 'mry', 'kview', 'mapilio', 'bing', 'here', 'apple', 'vcua', 'spro',
+    'klive', 'rbase', 'rrstr',
+]);
 
 // localStorage keys for floating icon position per site
 function extIconLsKey(loc) { return `WMEJumpMapsExtIcon_${loc}`; }
