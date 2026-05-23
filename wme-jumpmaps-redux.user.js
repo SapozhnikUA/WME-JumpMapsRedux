@@ -2,7 +2,7 @@
 // @name         WME JumpMapsRedux
 // @description  Швидкі переходи з WME на інші картографічні ресурси (Bookmarks/Favorites) та навпаки — в окремому вікні. Підтримує OSM, Google, Yandex, 2GIS, Bing, Here, Apple Maps, Mapillary, Wikimapia, Visicom, satellites.pro та інші. Зберігає позицію плаваючої панелі. Не використовує та не копіює сторонні дані, не порушує інтелектуальної власності. Переписано під офіційний WME SDK v2, без залежності від WazeWrap.
 // @license      MIT
-// @version      6.1.0
+// @version      6.1.1
 // @author       skirda, alexletov, Claude (Anthropic)
 // @include      https://*.waze.com/*editor*
 // @include      https://n.maps.yandex.ru/*
@@ -35,6 +35,8 @@
 // @match        https://*.waze.com/*map-editor/*
 // @match        https://*.waze.com/*editor*
 // @require      https://cdn.jsdelivr.net/npm/proj4@2.20.8/dist/proj4.js
+// @updateURL    https://raw.githubusercontent.com/SapozhnikUA/WME-JumpMapsRedux/main/wme-jumpmaps-redux.user.js
+// @downloadURL  https://raw.githubusercontent.com/SapozhnikUA/WME-JumpMapsRedux/main/wme-jumpmaps-redux.user.js
 // @grant        none
 // ==/UserScript==
 
@@ -51,19 +53,17 @@
 // ═══════════════════════════════════════════════════════════════
 const SCRIPT_ID      = 'wme-jumpmaps';
 const SCRIPT_NAME    = 'WME JumpMapsRedux';
-const SCRIPT_VERSION = '6.1.0';
+const SCRIPT_VERSION = '6.1.1';
 const FLOAT_ID       = 'wmejm-floatbar';
 
 const DEFAULT_LEFT   = '400px';
 const DEFAULT_TOP    = '100px';
 
 const LS = {
-    LINK    : 'WMEJumpMapsLink',
-    DEBUG   : 'WMEJumpMapsDebug',
-    RESTORE : 'WMEJumpMapsRestoreSelected',
-    HIDE    : 'WMEJumpMapsHideWindow',
-    TOP     : 'WMEJumpMapsTopOffset',
-    LEFT    : 'WMEJumpMapsLeftOffset',
+    LINK : 'WMEJumpMapsLink',
+    HIDE : 'WMEJumpMapsHideWindow',
+    TOP  : 'WMEJumpMapsTopOffset',
+    LEFT : 'WMEJumpMapsLeftOffset',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -79,14 +79,12 @@ proj4.defs([
 // ═══════════════════════════════════════════════════════════════
 // Runtime state
 // ═══════════════════════════════════════════════════════════════
-let sdk = null;  // WME SDK v2 instance — set inside initWME()
+let sdk = null;
 
 let cfg = {
-    debug          : false,
-    restoreSelected: false,
-    hideWindow     : false,
-    topOffset      : DEFAULT_TOP,
-    leftOffset     : DEFAULT_LEFT,
+    hideWindow : false,
+    topOffset  : DEFAULT_TOP,
+    leftOffset : DEFAULT_LEFT,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -96,7 +94,7 @@ let cfg = {
 // ═══════════════════════════════════════════════════════════════
 const DEFAULT_MAPS = {
     // Waze internal — never shown in the bar, used only for link building
-    _map_WME    : { save:0, title:'Open in WME',               name:'[WME]',   template:'https://www.waze.com/editor/?env=row&zoomLevel={{zoom}}&lat={{lat}}&lon={{lon}}' },
+    _map_WME    : { save:0, title:'Open in WME',               name:'[WME]',   template:'{{wmebase}}/editor/?env=row&zoomLevel={{zoom}}&lat={{lat}}&lon={{lon}}' },
     // Third-party — default ON
     _map_OSM    : { save:1, title:'Open in OSM',               name:'[OSM]',   template:'http://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}' },
     _map_BING   : { save:1, title:'Open in Bing Map',          name:'[Bing]',  template:'http://www.bing.com/maps/?v=2&cp={{lat}}~{{lon}}&lvl={{zoom}}&dir=0&sty=h&form=LMLTEW' },
@@ -106,6 +104,7 @@ const DEFAULT_MAPS = {
     _map_WM     : { save:1, title:'Open in Wikimapia',         name:'[WM]',    template:'http://wikimapia.org/#lang=ru&lat={{lat}}&lon={{lon}}&z={{zoom}}&m=b' },
     _map_VCUA   : { save:1, title:'Open in maps.visicom.ua',   name:'[VCUA]',  template:'https://maps.visicom.ua/c/{{lon}},{{lat}},{{zoom}}?lang=uk' },
     _map_SPRO   : { save:1, title:'Open in satellites.pro',    name:'[SPRO]',  template:'https://satellites.pro/#{{lat}},{{lon}},{{zoom}}' },
+    _map_CAMUA  : { save:1, title:'Open in Camera Ukraine',    name:'[CamUA]', template:'https://checker.waze.com.ua/camera/?lat={{lat}}&lon={{lon}}&zoomLevel={{zoom}}' },
     // Third-party — default OFF
     _map_Google : { save:0, title:'Open in Google Map',        name:'[G]',     template:'http://www.google.com/maps/?ll={{lat}}%2C{{lon}}&z={{zoom}}&t=m' },
     _map_YM     : { save:0, title:'Open in Yandex Map',        name:'[YM]',    template:'http://maps.yandex.ru/?ll={{lon}}%2C{{lat}}&z={{zoom}}&l=pmap%2Cstv' },
@@ -115,7 +114,6 @@ const DEFAULT_MAPS = {
     _map_MPLIO  : { save:0, title:'Open in Mapilio',           name:'[MPLIO]', template:'https://mapilio.com/app?lat={{lat}}&lng={{lon}}&zoom={{zoom}}' },
     _map_SC     : { save:0, title:'Open in mapcam.info',       name:'[SC]',    template:'http://mapcam.info/speedcam/?lng={{lon}}&lat={{lat}}&z={{zoom}}&t=OSM' },
     _map_SC2    : { save:0, title:'Open in SpeedCamOnLine',    name:'[SCO]',   template:'http://speedcamonline.ru/view/Rus/{{lat}}/{{lon}}/{{zoom}}' },
-    _map_KAMUA  : { save:1, title:'Open in Camera Ukraine',     name:'[KamUA]', template:'https://checker.waze.com.ua/camera/?lat={{lat}}&lon={{lon}}&zoomLevel={{zoom}}' },
     _map_RE     : { save:0, title:'Open in RosReestr',         name:'[RE]',    template:'https://pkk.rosreestr.ru/#/search/{{lat}},{{lon}}/{{zoom}}' },
     _map_BP     : { save:0, title:'Open in benzin-price.ru',   name:'[BP]',    template:'http://www.benzin-price.ru/m/index.php?lat={{lat}}&lon={{lon}}&distance=1' },
     _map_BM     : { save:0, title:'Open in Baltic Maps',       name:'[BM]',    template:'https://balticmaps.eu/lv/c___{{lon}}-{{lat}}-{{zoom}}/bl___cl' },
@@ -126,14 +124,11 @@ const DEFAULT_MAPS = {
     _map_WMFLAB : { save:0, title:'Open in tools.wmflabs.org', name:'[WMF]',   template:'https://tools.wmflabs.org/geohack/geohack.php?params={{lat}}_N_{{lon}}_E_scale:{{zoom}}' },
 };
 
-// Working copy, populated in loadMapDefs()
 let mapDefs = {};
 
 // ═══════════════════════════════════════════════════════════════
 // Small utilities
 // ═══════════════════════════════════════════════════════════════
-const log = (...a) => cfg.debug && console.log(`[WME-JM ${SCRIPT_VERSION}]`, ...a);
-
 function lsGet(key, type, def) {
     const raw = localStorage.getItem(key);
     if (raw === null) return def;
@@ -144,7 +139,6 @@ function lsGet(key, type, def) {
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
 function isJson(s)    { try { JSON.parse(s); return true; } catch { return false; } }
 
-/** Read one query-string value from a URL string. Returns null if not found. */
 function qs(url, name) {
     const pos = url.indexOf(name + '=');
     if (pos < 0) return null;
@@ -190,11 +184,10 @@ function getLLZ() {
     const loc  = getLocationType();
 
     switch (loc) {
-
         case 'waze': {
             const center = sdk.Map.getMapCenter();
             zoom = sdk.Map.getZoomLevel();
-            lat  = center.lat; lon = center.lon;
+            lat = center.lat; lon = center.lon;
             break;
         }
         case 'NM': {
@@ -323,28 +316,20 @@ function getLLZ() {
         }
     }
 
-    log('getLLZ()', loc, { lat, lon, zoom });
     return { lat, lon, zoom, city };
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Coordinate conversion: external site → WGS84 for WME permalink
+// Coordinate conversions
 // ═══════════════════════════════════════════════════════════════
 function convertOther2WME(llz) {
-    const loc = getLocationType();
-    // Sites that store coords in EPSG:3857 (Web Mercator)
-    if (loc === 'bm') {
+    if (getLocationType() === 'bm') {
         const c = proj4('EPSG:3857', 'EPSG:4326', [llz.lon, llz.lat]);
         llz.lon = c[0]; llz.lat = c[1];
     }
     return llz;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Coordinate conversion: WGS84 → target map's system/zoom
-// ═══════════════════════════════════════════════════════════════
-
-// 2GIS city slug lookup table
 const CITIES_2GIS = [
     {c:'moscow',       lon0:36.763,lat0:56.108,lon1:38.221,lat1:55.105},
     {c:'spb',          lon0:29.413,lat0:60.292,lon1:31.025,lat1:59.536},
@@ -373,7 +358,6 @@ const CITIES_2GIS = [
 
 function convertWME2Other(id, llz) {
     switch (id) {
-
         case '_map_2GIS': {
             if (llz.zoom > 18) llz.zoom = 18;
             for (const city of CITIES_2GIS) {
@@ -384,14 +368,11 @@ function convertWME2Other(id, llz) {
             }
             break;
         }
-
         case '_map_BM': {
-            // Baltic Maps encodes position as EPSG:3857 in the URL path
             const c = proj4('EPSG:4326', 'EPSG:3857', [llz.lon, llz.lat]);
             llz.lon = c[0]; llz.lat = c[1];
             break;
         }
-
         case '_map_WMFLAB': {
             const deg2dms = d => {
                 const deg = Math.trunc(d);
@@ -404,23 +385,11 @@ function convertWME2Other(id, llz) {
             llz.zoom = Math.pow(2, 12 - llz.zoom) * 100000;
             break;
         }
-
-        case '_map_AMR':
-            llz.zoom = llz.zoom >= 7 ? 10 : llz.zoom + 4;
-            break;
-
-        case '_map_MRY':
-            llz.zoom = Math.max(0, llz.zoom - 1);
-            break;
-
-        case '_map_KVIEW':
-            if (llz.zoom > 18) llz.zoom = 18;
-            break;
-
+        case '_map_AMR':   llz.zoom = llz.zoom >= 7 ? 10 : llz.zoom + 4; break;
+        case '_map_MRY':   llz.zoom = Math.max(0, llz.zoom - 1); break;
+        case '_map_KVIEW': if (llz.zoom > 18) llz.zoom = 18; break;
         default: break;
     }
-
-    log('convertWME2Other()', id, llz);
     return llz;
 }
 
@@ -428,8 +397,6 @@ function convertWME2Other(id, llz) {
 // Open a target map
 // ═══════════════════════════════════════════════════════════════
 function jumpToMap(mapId) {
-    log('jumpToMap()', mapId);
-
     let llz = getLLZ();
     const goingToWME = mapId === '_map_WME';
 
@@ -442,28 +409,16 @@ function jumpToMap(mapId) {
     const def = mapDefs[mapId];
     if (!def) { console.warn('[WME-JM] No definition for', mapId); return; }
 
+    const wmeBase = `https://${location.hostname}`;
     let url = def.template
-        .replace('{{city}}', llz.city || '')
-        .replace('{{lon}}',  llz.lon)
-        .replace('{{lat}}',  llz.lat)
-        .replace('{{zoom}}', llz.zoom);
+        .replace('{{wmebase}}', wmeBase)
+        .replace('{{city}}',   llz.city || '')
+        .replace('{{lon}}',    llz.lon)
+        .replace('{{lat}}',    llz.lat)
+        .replace('{{zoom}}',   llz.zoom);
 
     if (goingToWME) url += '&marker=yes';
-
-    log('Opening:', url);
     window.open(url, `_jm_${mapId}`);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Alpha ↔ Beta editor switcher
-// ═══════════════════════════════════════════════════════════════
-function getSwitcherHref() {
-    const center = sdk.Map.getMapCenter();
-    const zoom   = sdk.Map.getZoomLevel();
-    const base   = location.hostname === 'www.waze.com'
-        ? 'https://beta.waze.com/editor'
-        : 'https://www.waze.com/editor';
-    return `${base}/?env=row&zoomLevel=${zoom}&lat=${center.lat}&lon=${center.lon}&marker=yes`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -479,6 +434,11 @@ function serializeLinks() {
 
 function loadMapDefs() {
     mapDefs = deepClone(DEFAULT_MAPS);
+    // Set WME template dynamically based on current host
+    const wmeBase = location.hostname === 'beta.waze.com'
+        ? 'https://beta.waze.com/editor'
+        : 'https://www.waze.com/editor';
+    mapDefs._map_WME.template = wmeBase + '/?env=row&zoomLevel={{zoom}}&lat={{lat}}&lon={{lon}}';
     const raw = localStorage.getItem(LS.LINK);
     if (!raw || !isJson(raw)) return;
     const saved = JSON.parse(raw);
@@ -501,6 +461,14 @@ function buildFloatBar() {
     if (!bar) {
         bar = document.createElement('div');
         bar.id = FLOAT_ID;
+
+        // Center on first run if no saved position
+        const hasSavedPos = localStorage.getItem(LS.LEFT) && localStorage.getItem(LS.TOP);
+        if (!hasSavedPos) {
+            cfg.leftOffset = Math.max(0, Math.round((window.innerWidth  - 400) / 2)) + 'px';
+            cfg.topOffset  = Math.max(0, Math.round((window.innerHeight -  30) / 2)) + 'px';
+        }
+
         bar.style.cssText = [
             'position:fixed',
             `top:${cfg.topOffset}`,
@@ -523,7 +491,6 @@ function buildFloatBar() {
         makeDraggable(bar);
     }
 
-    // ── Rebuild inner HTML ───────────────────────────────────
     let html = `<b>JM&nbsp;${SCRIPT_VERSION}</b>&nbsp;`;
 
     for (const [id, def] of Object.entries(mapDefs)) {
@@ -535,7 +502,6 @@ function buildFloatBar() {
 
     bar.innerHTML = html;
 
-    // Click handlers
     bar.querySelectorAll('[data-jmid]').forEach(a => {
         a.addEventListener('click', e => { e.preventDefault(); jumpToMap(a.dataset.jmid); });
     });
@@ -548,7 +514,7 @@ function makeDraggable(el) {
     let drag = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
 
     el.addEventListener('mousedown', e => {
-        if (e.target.tagName === 'A') return; // don't hijack link clicks
+        if (e.target.tagName === 'A') return;
         drag     = true;
         startX   = e.clientX; startY = e.clientY;
         origLeft = parseInt(el.style.left) || 0;
@@ -570,41 +536,25 @@ function makeDraggable(el) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Settings panel
+// Settings panel (WME sidebar tab)
 // ═══════════════════════════════════════════════════════════════
-
-/**
- * Register a sidebar tab via sdk.Sidebar.registerScriptTab().
- * If that fails, fall back to a floating ⚙ panel.
- *
- * SDK docs:
- *   sdk.Sidebar.registerScriptTab() → Promise<{ tabLabel, tabPane }>
- */
 async function buildSettingsPanel() {
-    let tabLabel, tabPane;
     try {
         const result = await sdk.Sidebar.registerScriptTab();
-        tabLabel = result.tabLabel;
-        tabPane  = result.tabPane;
+        result.tabLabel.innerText = 'JM';
+        result.tabLabel.title     = `WME JumpMapsRedux ${SCRIPT_VERSION}`;
+        result.tabPane.appendChild(createSettingsDOM());
     } catch (e) {
-        console.warn('[WME-JM] Sidebar.registerScriptTab() failed — using floating panel fallback:', e);
-        buildFloatingSettingsFallback();
-        return;
+        console.warn('[WME-JM] Sidebar.registerScriptTab() failed:', e);
     }
-
-    tabLabel.innerText = 'JM';
-    tabLabel.title     = `WME JumpMaps ${SCRIPT_VERSION}`;
-    tabPane.appendChild(createSettingsDOM());
 }
 
-/** Build the settings DOM (used by both sidebar tab and floating fallback) */
 function createSettingsDOM() {
     const root = document.createElement('div');
     root.style.cssText = 'padding:8px;font-family:sans-serif;font-size:12px';
-    root.innerHTML = `<h4 style="margin:0 0 6px">WME JumpMaps <sup>${SCRIPT_VERSION}</sup></h4>`
+    root.innerHTML = `<h4 style="margin:0 0 6px">WME JumpMapsRedux <sup>${SCRIPT_VERSION}</sup></h4>`
                    + `<hr style="margin:4px 0">`;
 
-    // ── Destinations ────────────────────────────────────────
     const hdr = document.createElement('b');
     hdr.textContent = 'Destinations:';
     root.appendChild(hdr);
@@ -615,7 +565,6 @@ function createSettingsDOM() {
         const row = document.createElement('div');
         row.style.margin = '3px 0';
 
-        // Visibility checkbox
         const chk = document.createElement('input');
         chk.type    = 'checkbox';
         chk.checked = !!def.save;
@@ -631,7 +580,6 @@ function createSettingsDOM() {
         lbl.appendChild(chk);
         lbl.appendChild(document.createTextNode(def.title));
 
-        // [edit] toggle
         const editBtn = document.createElement('a');
         editBtn.href        = '#';
         editBtn.textContent = ' [edit]';
@@ -640,12 +588,11 @@ function createSettingsDOM() {
         const editArea = document.createElement('div');
         editArea.style.cssText = 'display:none;padding:2px 0 2px 14px;font-size:11px';
 
-        const fields = [
+        [
             { label:'Name',     key:'name',     size:12 },
             { label:'Title',    key:'title',    size:24 },
             { label:'Template', key:'template', size:36, title:'Placeholders: {{city}} {{lon}} {{lat}} {{zoom}}' },
-        ];
-        fields.forEach(f => {
+        ].forEach(f => {
             const inp = document.createElement('input');
             inp.value = def[f.key];
             inp.size  = f.size;
@@ -673,149 +620,83 @@ function createSettingsDOM() {
         root.appendChild(row);
     }
 
-    // ── Options ─────────────────────────────────────────────
     root.appendChild(Object.assign(document.createElement('hr'), { style:'margin:6px 0' }));
     const optHdr = document.createElement('b');
     optHdr.textContent = 'Options:';
     root.appendChild(optHdr);
 
-    function addOpt(text, lsKey, prop, extraHandler) {
+    // Hide floating bar toggle
+    {
         const wrap = document.createElement('div');
         const c    = document.createElement('input');
         c.type    = 'checkbox';
-        c.checked = cfg[prop];
+        c.checked = cfg.hideWindow;
         c.style.marginRight = '4px';
         c.addEventListener('change', () => {
-            cfg[prop] = c.checked;
-            localStorage.setItem(lsKey, c.checked ? '1' : '0');
-            if (extraHandler) extraHandler(c.checked);
+            cfg.hideWindow = c.checked;
+            localStorage.setItem(LS.HIDE, c.checked ? '1' : '0');
+            const bar = document.getElementById(FLOAT_ID);
+            if (bar) bar.style.visibility = c.checked ? 'hidden' : 'visible';
         });
         const l = document.createElement('label');
         l.appendChild(c);
-        l.appendChild(document.createTextNode(text));
+        l.appendChild(document.createTextNode('Hide floating bar'));
         wrap.appendChild(l);
         root.appendChild(wrap);
     }
 
-    addOpt('Debug log',                   LS.DEBUG,   'debug');
-    addOpt('Hide floating bar',           LS.HIDE,    'hideWindow', v => {
-        const bar = document.getElementById(FLOAT_ID);
-        if (bar) bar.style.visibility = v ? 'hidden' : 'visible';
-    });
-
-    function addBtn(text, title, onClick) {
+    const addBtn = (text, title, onClick) => {
         const btn = document.createElement('button');
         btn.textContent = text;
         btn.title = title;
         btn.style.cssText = 'display:block;margin-top:5px;font-size:11px;cursor:pointer';
         btn.addEventListener('click', onClick);
         root.appendChild(btn);
-    }
+    };
 
     addBtn('↺ Reset config', 'Reset all JumpMaps settings to defaults', () => {
         if (!confirm('Reset WME JumpMaps config?')) return;
         localStorage.removeItem(LS.LINK);
-        localStorage.removeItem(LS.DEBUG);
-        cfg.debug = false;
         loadMapDefs();
         buildFloatBar();
-        // Refresh form in-place
         while (root.firstChild) root.removeChild(root.firstChild);
         root.appendChild(createSettingsDOM());
     });
 
-    addBtn('↺ Reset bar position', 'Move floating bar back to default position', () => {
-        localStorage.setItem(LS.LEFT, DEFAULT_LEFT);
-        localStorage.setItem(LS.TOP,  DEFAULT_TOP);
+    addBtn('↺ Reset bar position', 'Move floating bar back to center of screen', () => {
+        localStorage.removeItem(LS.LEFT);
+        localStorage.removeItem(LS.TOP);
         const bar = document.getElementById(FLOAT_ID);
-        if (bar) { bar.style.left = DEFAULT_LEFT; bar.style.top = DEFAULT_TOP; }
+        if (bar) {
+            const l = Math.max(0, Math.round((window.innerWidth  - 400) / 2)) + 'px';
+            const t = Math.max(0, Math.round((window.innerHeight -  30) / 2)) + 'px';
+            bar.style.left = l; bar.style.top = t;
+            localStorage.setItem(LS.LEFT, l);
+            localStorage.setItem(LS.TOP,  t);
+        }
     });
 
     return root;
 }
 
-/** Floating settings panel — fallback when Sidebar API is unavailable */
-function buildFloatingSettingsFallback() {
-    const panel = document.createElement('div');
-    panel.id = 'wmejm-settings-panel';
-    panel.style.cssText = [
-        'position:fixed',
-        `top:${parseInt(cfg.topOffset) + 30}px`,
-        `left:${cfg.leftOffset}`,
-        'z-index:10000',
-        'background:#fff',
-        'border:1px solid #aaa',
-        'border-radius:4px',
-        'box-shadow:0 3px 10px rgba(0,0,0,.3)',
-        'display:none',
-        'max-height:80vh',
-        'overflow-y:auto',
-        'min-width:320px',
-    ].join(';');
-    panel.appendChild(createSettingsDOM());
-
-    (document.getElementById('waze-map-container')?.parentElement ?? document.body)
-        .appendChild(panel);
-
-    // Add ⚙ toggle button to the floating bar
-    const bar = document.getElementById(FLOAT_ID);
-    if (bar) {
-        const btn = document.createElement('a');
-        btn.textContent = ' ⚙';
-        btn.title = 'JumpMaps settings';
-        btn.style.cssText = 'cursor:pointer;color:#00547a;text-decoration:none';
-        btn.addEventListener('click', e => {
-            e.preventDefault();
-            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-        });
-        bar.appendChild(btn);
-    }
-}
-
 // ═══════════════════════════════════════════════════════════════
-// External map sites: insert a "jump to WME" icon button
+// External map sites — floating fixed WME icon button
 // ═══════════════════════════════════════════════════════════════
-// Waze icon (DiemenDesign/LibreICONS, MIT) — light grey rounded rect + dark grey border + black logo.
-// base64 SVG data URI: no external requests, CSP-safe.
+// Waze icon (DiemenDesign/LibreICONS, MIT) — light grey rounded rect + dark border.
 const WME_ICON_SVG = '<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSI2IiByeT0iNiIgZmlsbD0iI2YwZjBmMCIgc3Ryb2tlPSIjNjY2NjY2IiBzdHJva2Utd2lkdGg9IjEuMiIvPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDIuMywyLjMpIHNjYWxlKDEuOTY0KSI+PHBhdGggZmlsbD0iIzAwMCIgZD0ibSAxMi45Mzc2NDksNS42ODk2ODUgYyAtMC4xMTYyNSwtMC42ODY2MSAtMC4zODg5MTQsLTEuMzMwMTYgLTAuODEwNjM4LC0xLjkxMjgyIC0wLjQ3NjMxNCwtMC42NTgxMSAtMS4xMjc5MjIsLTEuMjA3NjEgLTEuODg0MzI0LC0xLjU4OTAzIC0wLjc2NDUzMzksLTAuMzg1NTIgLTEuNjE3ODgyOSwtMC41ODkzOCAtMi40Njc4MzY5LC0wLjU4OTM4IC0wLjIzOTc4MywwIC0wLjQ4MTQ3NSwwLjAxNjMgLTAuNzE4NDMsMC4wNDgyIC0wLjk5MjM2NywwLjEzNDA3IC0xLjk2ODExOCwwLjU0Njg5IC0yLjc0NzU3MiwxLjE2MjQzIC0wLjg3ODIzOSwwLjY5MzU0IC0xLjQ0NDk5MywxLjU4NTIxIC0xLjYzODg4NCwyLjU3ODc4IC0wLjA1Nzc3LDAuMjk1MzcgLTAuMDgyMzgsMC42MjIxMiAtMC4xMDYyMDksMC45MzgwNiAtMC4wMzczNCwwLjQ5NDU2IC0wLjA3NTk0LDEuMDA1OTUgLTAuMjMzMjA3LDEuMzQwMTMgLTAuMTA3NDgyLDAuMjI4NCAtMC4yNjc4NTYsMC4zODA1IC0wLjcwMTM4OSwwLjM4MDUgLTAuMjM4NTgxLDAgLTAuNDU2NTg1LDAuMTM0OTIgLTAuNTYzMDc3LDAuMzQ4NDcgLTAuMTA2NDIwOTgsMC4yMTM1NSAtMC4wODI5NCwwLjQ2ODg5IDAuMDYwNiwwLjY1OTMxIDAuNjUzMTY0LDAuODY2NSAxLjUwNTUyMiwxLjM5MTMzIDIuNDAyOTIzLDEuNzA3NTUgLTAuMDQwODcsMC4xMjM0NiAtMC4wNjM4NSwwLjI1NDkxIC0wLjA2Mzg1LDAuMzkyMDkgMCwwLjY4OTAyIDAuNTU4NTUxLDEuMjQ3NTcgMS4yNDc1NjYsMS4yNDc1NyAwLjY3MTk3MiwwIDEuMjE4MjkxLC0wLjUzMTYxIDEuMjQ0OTQ5LC0xLjE5NzAxIDAuMjkyNTM0LDAuMDE1OSAxLjY4NTQ4MywwLjAxOTcgMS44NDA4MzYsMC4wMTUzIDAuMDM0NDQsMC42NTgyNSAwLjU3NzUwMiwxLjE4MTY2IDEuMjQ0MjQzLDEuMTgxNjYgMC42ODg5NDMsMCAxLjI0NzQ5NDksLTAuNTU4NDggMS4yNDc0OTQ5LC0xLjI0NzU3IDAsLTAuMTU3MDUgLTAuMDMwMjYsLTAuMzA2NzQgLTAuMDgzMTYsLTAuNDQ1MTMgMC40ODkxODMsLTAuMjM3OTQgMC45NTA5MywtMC41NTkwNCAxLjM1Mzg0NSwtMC45NDU3NiAwLjU2MTg3NSwtMC41MzkxOCAwLjk3NDI2NSwtMS4xNzUzIDEuMTkyNzY0LC0xLjgzOTY0IDAuMjQ1ODY1LC0wLjc0NzcgMC4zMDc2NjcsLTEuNDk5MyAwLjE4MzM1NSwtMi4yMzM3OCBtIC04LjIyNDMyOTksNS44NzYgYyAtMC4yMjczMzgsMCAtMC40MTE2ODQsLTAuMTg0MjEgLTAuNDExNjg0LC0wLjQxMTY5IDAsLTAuMjI3MzMgMC4xODQzNDYsLTAuNDExNjggMC40MTE2ODQsLTAuNDExNjggMC4yMjc0MDgsMCAwLjQxMTY4MywwLjE4NDM1IDAuNDExNjgzLDAuNDExNjggMCwwLjIyNzQ4IC0wLjE4NDI3NSwwLjQxMTY5IC0wLjQxMTY4MywwLjQxMTY5IG0gNC4zMzAwMjgsMCBjIC0wLjIyNzQwOSwwIC0wLjQxMTc1NCwtMC4xODQyMSAtMC40MTE3NTQsLTAuNDExNjkgMCwtMC4yMjczMyAwLjE4NDM0NSwtMC40MTE2OCAwLjQxMTc1NCwtMC40MTE2OCAwLjIyNzQwOCwwIDAuNDExNjgzLDAuMTg0MzUgMC40MTE2ODMsMC40MTE2OCA3LjFlLTUsMC4yMjc0OCAtMC4xODQyNzUsMC40MTE2OSAtMC40MTE2ODMsMC40MTE2OSBtIDMuMTEzMjkxOSwtMy44Mzg3MyBjIC0wLjM2MDI3NiwxLjA5NTMzIC0xLjMwOTg2MiwxLjk5OTggLTIuMzIxODE2OSwyLjQ2Mjg5IC0wLjIxNTQ1OCwtMC4xNzcwNiAtMC40OTA5NTEsLTAuMjgzMjcgLTAuNzkxNDA1LC0wLjI4MzI3IC0wLjQ4NDIzMywwIC0wLjkwMzA1OCwwLjI3NjIgLTEuMTA5NzQ4LDAuNjc5MzMgLTAuMjEwNDM4LDAuMDA5IC0xLjc3NzMzOCwwLjAwMyAtMi4xMjAyMTksLTAuMDIwMiAtMC4yMTAxNTUsLTAuMzkyMjMgLTAuNjIzODE4LC0wLjY1OTE3IC0xLjEwMDA2MSwtMC42NTkxNyAtMC4zMTY3ODgsMCAtMC42MDUyMjEsMC4xMTg5NCAtMC44MjUxMzQsMC4zMTM1NCAtMC44NTIzNTgsLTAuMjc1NDMgLTEuNjU3MzQsLTAuNzQ2MDggLTIuMjU5MDI1LC0xLjU0NDQ5IDEuNzc5MTc2LDAgMS40MjgwOTIsLTEuOTg4MjcgMS42NTgyNTksLTMuMTY3MzEgMC4zNTA2NTksLTEuNzk2OTMgMi4xMjgzNSwtMy4wMDUxOCAzLjg1MzE0OCwtMy4yMzgxNyAwLjIxMjEzNSwtMC4wMjg2IDAuNDI0MjcsLTAuMDQyNiAwLjYzNDIxMywtMC4wNDI2IDIuODM0NzU5OSw3ZS01IDUuMzU4MTA0OSwyLjUzMDk4IDQuMzgxNzg4OSw1LjQ5OTM4IG0gLTQuNDA1NjE4OSwwLjg3NDM1IGMgLTEuMDIzNjkyLDAgLTEuOTQ1OTE0LC0wLjY3MTE5IC0yLjExNTA1NiwtMS41NDk3OCAtMC4wMzI4MSwtMC4xNzA1NiAwLjA3ODkxLC0wLjMzNTUzIDAuMjQ5NDcxLC0wLjM2ODM0IDAuMTcwNjI3LC0wLjAzMjkgMC4zMzU1MjcsMC4wNzg5IDAuMzY4MzM3LDAuMjQ5NDcgMC4wOTk0MiwwLjUxNjQ4IDAuNzE3ODY1LDEuMDYwMzkgMS41NDIyMjEsMS4wMzg4MiAwLjg1ODcyMiwtMC4wMjI1IDEuNDI1OSwtMC41MzU5OSAxLjU0MjQzMywtMS4wMzE1NCAwLjAzOTgxLC0wLjE2OTA3IDAuMjA5Mzc4LC0wLjI3Mzc5IDAuMzc4MzA4LC0wLjIzNDE5IDAuMTY5MjEzLDAuMDM5OCAwLjI3NDAwNywwLjIwOTE2IDAuMjM0MTk3LDAuMzc4MjMgLTAuMDk1MTgsMC40MDQ1NCAtMC4zNTU2OCwwLjc3OTMyIC0wLjczMzYzNCwxLjA1NTQ1IC0wLjM5MzY1MiwwLjI4Nzc5IC0wLjg3OTUxMSwwLjQ0NzE4IC0xLjQwNDc1NywwLjQ2MTA0IC0wLjAyMDUxLDYuM2UtNCAtMC4wNDEwOCw4LjRlLTQgLTAuMDYxNTIsOC40ZS00IG0gMi4wMzcxMzIsLTMuMjM5NTggYyAwLDAuMzMzNjkgLTAuMjcwNTQyLDAuNjA0MjMgLTAuNjA0MjMxLDAuNjA0MjMgLTAuMzMzNjE3LDAgLTAuNjA0MTYsLTAuMjcwNTQgLTAuNjA0MTYsLTAuNjA0MjMgMCwtMC4zMzM2OSAwLjI3MDU0MywtMC42MDQwOSAwLjYwNDE2LC0wLjYwNDA5IDAuMzMzNjg5LDAgMC42MDQyMzEsMC4yNzAzMyAwLjYwNDIzMSwwLjYwNDA5IG0gLTIuODIyNTk3LDAgYyAwLDAuMzMzNjkgLTAuMjcwNDcyLDAuNjA0MjMgLTAuNjA0MTYsMC42MDQyMyAtMC4zMzM2MTgsMCAtMC42MDQxNiwtMC4yNzA1NCAtMC42MDQxNiwtMC42MDQyMyAwLC0wLjMzMzY5IDAuMjcwNTQyLC0wLjYwNDA5IDAuNjA0MTYsLTAuNjA0MDkgMC4zMzM2ODgsMCAwLjYwNDE2LDAuMjcwMzMgMC42MDQxNiwwLjYwNDA5Ii8+PC9nPjwvc3ZnPg==" width="32" height="32" alt="WME" style="display:block">';
 
-const INJECT_MAP = {
-    NM      : { how:'class', sel:'nk-app-bar-view__button_id_help', insert:'append-parent' },
-    YM      : { how:'class', sel:'map-controls-view__zoom-control',  insert:'before-parent' },
-    google  : { how:'class', sel:'TorxFf',                           insert:'prepend' },
-    '2gis'  : { how:'id',    sel:'root',                             insert:'prepend' },
-    re      : { how:'class', sel:'zoom-buttons-container',           insert:'append' },
-    sco     : { how:'class', sel:'map-layer-top',                    insert:'before' },
-    wm      : { how:'id',    sel:'wm-Add',                           insert:'append' },
-    bm      : { how:'id',    sel:'map_mb',                           insert:'append' },
-    osm     : { how:'class', sel:'leaflet-top leaflet-right',        insert:'prepend' },
-    mry     : { how:'class', sel:'comments',                         insert:'before-parent' },
-    mapilio : { how:'class', sel:'MuiBox-root css-i8np4w',           insert:'before' },
-    kview   : { how:'class', sel:'map-container mapboxgl-map',       insert:'before' },
-    sc      : { how:'id',    sel:'map_right_menu',                   insert:'append' },
-    bing    : { how:'class', sel:'map-footer',                       insert:'prepend' },
-    here    : { how:'class', sel:'tpoi-container',                   insert:'prepend' },
-    apple   : { how:'class', sel:'maps-canvas-container',            insert:'prepend' },
-    vcua    : { how:'id',    sel:'map',                              insert:'prepend' },
-    spro    : { how:'id',    sel:'map',                              insert:'prepend' },
-};
-
-// Sites that use a floating fixed button (unstable DOM / SPA)
-// All external sites use a floating fixed button — no brittle DOM anchor needed
+// All external sites use a floating fixed button
 const FLOATING_ICON_SITES = new Set([
     'NM', 'YM', 'google', '2gis', 're', 'sc', 'sco', 'wm', 'bm',
     'osm', 'mry', 'kview', 'mapilio', 'bing', 'here', 'apple', 'vcua', 'spro',
     'klive', 'rbase', 'rrstr',
 ]);
 
-// localStorage keys for floating icon position per site
 function extIconLsKey(loc) { return `WMEJumpMapsExtIcon_${loc}`; }
 
-/** Create a draggable fixed WME button for SPA/unstable-DOM sites */
 function insertFloatingIcon(loc) {
     if (document.getElementById('wmejm-ext-btn')) return;
 
-    // Restore saved position or default to bottom-right
     let savedPos = null;
     try { savedPos = JSON.parse(localStorage.getItem(extIconLsKey(loc))); } catch {}
     const initRight  = (savedPos && savedPos.right  != null) ? savedPos.right  + 'px' : '16px';
@@ -837,11 +718,10 @@ function insertFloatingIcon(loc) {
         'transition:box-shadow .15s',
     ].join(';');
 
-    // Drag logic (right/bottom anchored so it stays in corner after resize)
-    let dragging = false, startX, startY, startRight, startBottom;
+    let dragging = false, startX, startY, startRight, startBottom, moved = false;
 
     btn.addEventListener('mousedown', e => {
-        dragging = true;
+        dragging = true; moved = false;
         startX = e.clientX; startY = e.clientY;
         startRight  = parseInt(btn.style.right)  || 16;
         startBottom = parseInt(btn.style.bottom) || 80;
@@ -852,34 +732,29 @@ function insertFloatingIcon(loc) {
 
     window.addEventListener('mousemove', e => {
         if (!dragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        btn.style.right  = Math.max(0, startRight  - dx) + 'px';
-        btn.style.bottom = Math.max(0, startBottom - dy) + 'px';
+        moved = true;
+        btn.style.right  = Math.max(0, startRight  - (e.clientX - startX)) + 'px';
+        btn.style.bottom = Math.max(0, startBottom - (e.clientY - startY)) + 'px';
     });
 
-    window.addEventListener('mouseup', e => {
+    window.addEventListener('mouseup', () => {
         if (!dragging) return;
         dragging = false;
         btn.style.boxShadow = '0 2px 6px rgba(0,0,0,.35)';
         btn.style.transition = 'box-shadow .15s';
-        // Save position
-        const pos = {
+        localStorage.setItem(extIconLsKey(loc), JSON.stringify({
             right:  parseInt(btn.style.right),
             bottom: parseInt(btn.style.bottom),
-        };
-        localStorage.setItem(extIconLsKey(loc), JSON.stringify(pos));
+        }));
     });
 
-    // Click → open WME (only when not dragging)
-    let moved = false;
-    btn.addEventListener('mousedown', () => { moved = false; });
-    window.addEventListener('mousemove', () => { if (dragging) moved = true; });
-    btn.addEventListener('mouseup', () => {
+    btn.addEventListener('click', () => {
         if (moved) return;
         let llz = getLLZ();
         llz = convertOther2WME(llz);
+        const wmeBase = 'https://www.waze.com';
         const url = DEFAULT_MAPS._map_WME.template
+            .replace('{{wmebase}}', wmeBase)
             .replace('{{zoom}}', llz.zoom)
             .replace('{{lat}}',  llz.lat)
             .replace('{{lon}}',  llz.lon) + '&marker=yes';
@@ -889,16 +764,13 @@ function insertFloatingIcon(loc) {
     document.body.appendChild(btn);
 }
 
-/** Insert WME icon button on external map sites */
 let extInsertTries = 0;
 
 function insertExternalIcon() {
     if (document.getElementById('wmejm-ext-btn')) return;
-
     const loc = getLocationType();
     if (!loc || loc === 'waze') return;
 
-    // SPA / unstable-DOM sites → floating fixed button
     if (FLOATING_ICON_SITES.has(loc)) {
         if (document.body) {
             insertFloatingIcon(loc);
@@ -908,44 +780,42 @@ function insertExternalIcon() {
         return;
     }
 
-    // All other sites → anchor-based injection
-    const inj = INJECT_MAP[loc];
-    if (!inj) return;
+    if (++extInsertTries < 10) setTimeout(insertExternalIcon, 800);
+}
 
-    let anchor;
-    if (inj.how === 'id')    anchor = document.getElementById(inj.sel);
-    if (inj.how === 'class') anchor = document.getElementsByClassName(inj.sel)[0];
-    if (inj.how === 'tag')   anchor = document.getElementsByTagName(inj.sel)[0];
 
-    if (!anchor) {
-        if (++extInsertTries < 10) setTimeout(insertExternalIcon, 800);
-        return;
-    }
+// ═══════════════════════════════════════════════════════════════
+// Version change notification
+// ═══════════════════════════════════════════════════════════════
+const LS_VERSION = 'WMEJumpMapsVersion';
 
-    const btn = document.createElement('div');
-    btn.id = 'wmejm-ext-btn';
-    btn.title = 'Open in WME';
-    btn.style.cssText = 'cursor:pointer;z-index:9999;display:block;pointer-events:auto;margin:5px';
-    btn.innerHTML = WME_ICON_SVG;
+function checkVersionChange() {
+    const prev = localStorage.getItem(LS_VERSION);
+    if (prev === SCRIPT_VERSION) return;
 
-    btn.addEventListener('click', () => {
-        let llz = getLLZ();
-        llz = convertOther2WME(llz);
-        const url = DEFAULT_MAPS._map_WME.template
-            .replace('{{zoom}}', llz.zoom)
-            .replace('{{lat}}',  llz.lat)
-            .replace('{{lon}}',  llz.lon) + '&marker=yes';
-        window.open(url, '_jm_wme');
-    });
+    const isUpdate = prev !== null;
+    localStorage.setItem(LS_VERSION, SCRIPT_VERSION);
 
-    switch (inj.insert) {
-        case 'append':        anchor.appendChild(btn); break;
-        case 'prepend':       anchor.insertBefore(btn, anchor.firstChild); break;
-        case 'before':        anchor.parentElement?.insertBefore(btn, anchor); break;
-        case 'after':         anchor.parentElement?.insertBefore(btn, anchor.nextSibling); break;
-        case 'before-parent': anchor.parentElement?.parentElement?.insertBefore(btn, anchor.parentElement); break;
-        case 'append-parent': anchor.parentElement?.appendChild(btn); break;
-    }
+    // Show notification in the float bar for 8 seconds
+    const bar = document.getElementById(FLOAT_ID);
+    if (!bar) return;
+
+    const note = document.createElement('span');
+    note.style.cssText = [
+        'margin-left:6px',
+        'padding:1px 5px',
+        'background:' + (isUpdate ? '#d4edda' : '#cce5ff'),
+        'color:'       + (isUpdate ? '#155724' : '#004085'),
+        'border-radius:3px',
+        'font-size:10px',
+        'font-weight:bold',
+    ].join(';');
+    note.textContent = isUpdate
+        ? `↑ Updated to v${SCRIPT_VERSION}`
+        : `✓ Installed v${SCRIPT_VERSION}`;
+    bar.appendChild(note);
+
+    setTimeout(() => note.remove(), 8000);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -953,20 +823,18 @@ function insertExternalIcon() {
 // ═══════════════════════════════════════════════════════════════
 function initWME() {
     if (typeof getWmeSdk === 'undefined') {
-        console.warn('[WME-JM] getWmeSdk not found — not running inside WME?');
+        console.warn('[WME-JM] getWmeSdk not found');
         return;
     }
 
-    // Initialise the SDK instance for this script
-    // See: https://www.waze.com/editor/sdk/index.html
     sdk = getWmeSdk({ scriptId: SCRIPT_ID, scriptName: SCRIPT_NAME });
 
-    // 'wme-ready' fires exactly once: after wme-initialized + wme-logged-in + wme-map-initial-data-loaded
     sdk.Events.once({ eventName: 'wme-ready' }).then(() => {
-        console.log(`[WME-JM ${SCRIPT_VERSION}] wme-ready received — starting`);
+        console.log(`[WME-JM ${SCRIPT_VERSION}] ready (SDK v2, proj4 2.20.8)`);
         loadMapDefs();
         buildFloatBar();
-        buildSettingsPanel(); // async — uses sdk.Sidebar.registerScriptTab()
+        checkVersionChange();
+        buildSettingsPanel();
     });
 }
 
@@ -974,22 +842,16 @@ function initWME() {
 // Entry point
 // ═══════════════════════════════════════════════════════════════
 (function bootstrap() {
-    console.log(`[WME-JM ${SCRIPT_VERSION}] bootstrap @ ${location.hostname}`);
-
-    cfg.debug           = lsGet(LS.DEBUG,   'bool', false);
-    cfg.restoreSelected = lsGet(LS.RESTORE, 'bool', false);
-    cfg.hideWindow      = lsGet(LS.HIDE,    'bool', false);
-    cfg.topOffset       = lsGet(LS.TOP,     'str',  DEFAULT_TOP);
-    cfg.leftOffset      = lsGet(LS.LEFT,    'str',  DEFAULT_LEFT);
+    cfg.hideWindow = lsGet(LS.HIDE, 'bool', false);
+    cfg.topOffset  = lsGet(LS.TOP,  'str',  DEFAULT_TOP);
+    cfg.leftOffset = lsGet(LS.LEFT, 'str',  DEFAULT_LEFT);
 
     const loc = getLocationType();
 
     if (loc === 'waze') {
-        // SDK_INITIALIZED is a Promise that WME resolves as soon as getWmeSdk() is available
         if (typeof SDK_INITIALIZED !== 'undefined') {
             SDK_INITIALIZED.then(initWME);
         } else {
-            // Defensive fallback for very old WME builds
             window.addEventListener('load', initWME);
         }
     } else if (loc) {
