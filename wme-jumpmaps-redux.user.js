@@ -2,8 +2,8 @@
 // @name         WME JumpMapsRedux
 // @description  Швидкі переходи з WME на інші картографічні ресурси (Bookmarks/Favorites) та навпаки — в окремому вікні. Підтримує OSM, Google, Yandex, 2GIS, Bing, Here, Apple Maps, Mapillary, Wikimapia, Visicom, satellites.pro та інші. Зберігає позицію плаваючої панелі. Не використовує та не копіює сторонні дані, не порушує інтелектуальної власності. Переписано під офіційний WME SDK v2, без залежності від WazeWrap.
 // @license      MIT
-// @version      6.1.1
-// @author       skirda, alexletov, Claude (Anthropic)
+// @version      6.1.3
+// @author       skirda, alexletov, Claude (Anthropic), Kuzia
 // @include      https://*.waze.com/*editor*
 // @include      https://n.maps.yandex.ru/*
 // @include      /^https?://maps\.yandex\.(ru|by)/*$/
@@ -32,6 +32,7 @@
 // @include      https://maps.apple.com/*
 // @include      https://maps.visicom.ua/*
 // @include      https://satellites.pro/*
+// @include      https://map.land.gov.ua/*
 // @match        https://*.waze.com/*map-editor/*
 // @match        https://*.waze.com/*editor*
 // @require      https://cdn.jsdelivr.net/npm/proj4@2.20.8/dist/proj4.js
@@ -53,7 +54,7 @@
 // ═══════════════════════════════════════════════════════════════
 const SCRIPT_ID      = 'wme-jumpmaps';
 const SCRIPT_NAME    = 'WME JumpMapsRedux';
-const SCRIPT_VERSION = '6.1.1';
+const SCRIPT_VERSION = '6.1.3';
 const FLOAT_ID       = 'wmejm-floatbar';
 
 const DEFAULT_LEFT   = '400px';
@@ -104,6 +105,7 @@ const DEFAULT_MAPS = {
     _map_WM     : { save:1, title:'Open in Wikimapia',         name:'[WM]',    template:'http://wikimapia.org/#lang=ru&lat={{lat}}&lon={{lon}}&z={{zoom}}&m=b' },
     _map_VCUA   : { save:1, title:'Open in maps.visicom.ua',   name:'[VCUA]',  template:'https://maps.visicom.ua/c/{{lon}},{{lat}},{{zoom}}?lang=uk' },
     _map_SPRO   : { save:1, title:'Open in satellites.pro',    name:'[SPRO]',  template:'https://satellites.pro/#{{lat}},{{lon}},{{zoom}}' },
+    _map_KADUA  : { save:0, title:'Open in Kadastr UA',        name:'[KADUA]', template:'https://map.land.gov.ua/?cc={{lon}},{{lat}}&z={{zoom}}&l=kadastr' },
     _map_CAMUA  : { save:1, title:'Open in Camera Ukraine',    name:'[CamUA]', template:'https://checker.waze.com.ua/camera/?lat={{lat}}&lon={{lon}}&zoomLevel={{zoom}}' },
     // Third-party — default OFF
     _map_Google : { save:0, title:'Open in Google Map',        name:'[G]',     template:'http://www.google.com/maps/?ll={{lat}}%2C{{lon}}&z={{zoom}}&t=m' },
@@ -118,7 +120,6 @@ const DEFAULT_MAPS = {
     _map_BP     : { save:0, title:'Open in benzin-price.ru',   name:'[BP]',    template:'http://www.benzin-price.ru/m/index.php?lat={{lat}}&lon={{lon}}&distance=1' },
     _map_BM     : { save:0, title:'Open in Baltic Maps',       name:'[BM]',    template:'https://balticmaps.eu/lv/c___{{lon}}-{{lat}}-{{zoom}}/bl___cl' },
     _map_AMR    : { save:0, title:'Open in atlas.mos.ru',      name:'[AMR]',   template:'https://atlas.mos.ru/?lang=ru&z={{zoom}}&ll={{lon}}%2C{{lat}}' },
-    _map_KLIVE  : { save:0, title:'Open in kadastr.live',      name:'[KLIVE]', template:'https://kadastr.live/#{{zoom}}/{{lat}}/{{lon}}' },
     _map_RBASE  : { save:0, title:'Open in radarbase.info',    name:'[RBASE]', template:'https://radarbase.info/map/actual/{{lat}}/{{lon}}/{{zoom}}' },
     _map_RRSTR  : { save:0, title:'Open in rreestrmap.ru',     name:'[RREE]',  template:'https://rreestrmap.ru/?lat={{lat}}&lng={{lon}}&zoom={{zoom}}' },
     _map_WMFLAB : { save:0, title:'Open in tools.wmflabs.org', name:'[WMF]',   template:'https://tools.wmflabs.org/geohack/geohack.php?params={{lat}}_N_{{lon}}_E_scale:{{zoom}}' },
@@ -172,6 +173,7 @@ function getLocationType() {
     if (h === 'maps.apple.com') return 'apple';
     if (h === 'maps.visicom.ua') return 'vcua';
     if (h === 'satellites.pro') return 'spro';
+    if (h === 'map.land.gov.ua') return 'kadua';
     return '';
 }
 
@@ -211,7 +213,16 @@ function getLLZ() {
             const at = href.indexOf('@');
             if (at >= 0) {
                 const gl = href.slice(at + 1).split(',');
-                lat = parseFloat(gl[0]); lon = parseFloat(gl[1]); zoom = parseInt(gl[2]);
+                lat = parseFloat(gl[0]); lon = parseFloat(gl[1]);
+                // Handle both 'z' (zoom level) and 'm' (meters per pixel) formats
+                const zoomStr = gl[2];
+                if (zoomStr.endsWith('m')) {
+                    // Convert meters to Google zoom level
+                    const meters = parseFloat(zoomStr);
+                    zoom = Math.round(Math.log2(156543.5 / meters));
+                } else {
+                    zoom = parseInt(zoomStr);
+                }
             } else {
                 lat = parseFloat(qs(href, 'y')); lon = parseFloat(qs(href, 'x')); zoom = parseInt(qs(href, 'z'));
             }
@@ -299,9 +310,17 @@ function getLLZ() {
             if (sm) { lat = parseFloat(sm[1]); lon = parseFloat(sm[2]); zoom = parseInt(sm[3]); }
             break;
         }
-        case 'klive': {
-            const klm = href.match(/#([\d]+)\/([\d.-]+)\/([\d.-]+)/);
-            if (klm) { zoom = parseInt(klm[1]); lat = parseFloat(klm[2]); lon = parseFloat(klm[3]); }
+        case 'kadua': {
+            const cc = qs(href, 'cc');
+            const kz = qs(href, 'z');
+            if (cc && kz) {
+                const parts = cc.split(',');
+                // cc contains EPSG:3857 (Web Mercator) coordinates
+                const mercLon = parseFloat(parts[0]); const mercLat = parseFloat(parts[1]);
+                const c = proj4('EPSG:3857', 'EPSG:4326', [mercLon, mercLat]);
+                lon = c[0]; lat = c[1];
+                zoom = parseInt(kz);
+            }
             break;
         }
         case 'rbase': {
@@ -388,6 +407,11 @@ function convertWME2Other(id, llz) {
         case '_map_AMR':   llz.zoom = llz.zoom >= 7 ? 10 : llz.zoom + 4; break;
         case '_map_MRY':   llz.zoom = Math.max(0, llz.zoom - 1); break;
         case '_map_KVIEW': if (llz.zoom > 18) llz.zoom = 18; break;
+        case '_map_KADUA': {
+            const c = proj4('EPSG:4326', 'EPSG:3857', [llz.lon, llz.lat]);
+            llz.lon = c[0]; llz.lat = c[1];
+            break;
+        }
         default: break;
     }
     return llz;
@@ -689,7 +713,7 @@ const WME_ICON_SVG = '<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cD
 const FLOATING_ICON_SITES = new Set([
     'NM', 'YM', 'google', '2gis', 're', 'sc', 'sco', 'wm', 'bm',
     'osm', 'mry', 'kview', 'mapilio', 'bing', 'here', 'apple', 'vcua', 'spro',
-    'klive', 'rbase', 'rrstr',
+    'kadua', 'rbase', 'rrstr',
 ]);
 
 function extIconLsKey(loc) { return `WMEJumpMapsExtIcon_${loc}`; }
