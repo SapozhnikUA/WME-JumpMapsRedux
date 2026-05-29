@@ -2,7 +2,7 @@
 // @name         WME JumpMapsRedux
 // @description  Швидкі переходи з WME на інші картографічні ресурси (Bookmarks/Favorites) та навпаки — в окремому вікні. Підтримує OSM, Google, Yandex, 2GIS, Bing, Here, Apple Maps, Mapillary, Wikimapia, Visicom, satellites.pro та інші. Зберігає позицію плаваючої панелі. Не використовує та не копіює сторонні дані, не порушує інтелектуальної власності. Переписано під офіційний WME SDK v2, без залежності від WazeWrap.
 // @license      MIT
-// @version      6.1.3
+// @version      6.1.4
 // @author       skirda, alexletov, Claude (Anthropic), Kuzia
 // @include      https://*.waze.com/*editor*
 // @include      https://n.maps.yandex.ru/*
@@ -52,19 +52,19 @@
 // ═══════════════════════════════════════════════════════════════
 // Constants
 // ═══════════════════════════════════════════════════════════════
-const SCRIPT_ID      = 'wme-jumpmaps';
-const SCRIPT_NAME    = 'WME JumpMapsRedux';
+const SCRIPT_ID = 'wme-jumpmaps';
+const SCRIPT_NAME = 'WME JumpMapsRedux';
 const SCRIPT_VERSION = '6.1.3';
-const FLOAT_ID       = 'wmejm-floatbar';
+const FLOAT_ID = 'wmejm-floatbar';
 
-const DEFAULT_LEFT   = '400px';
-const DEFAULT_TOP    = '100px';
+const DEFAULT_LEFT = '400px';
+const DEFAULT_TOP = '100px';
 
 const LS = {
-    LINK : 'WMEJumpMapsLink',
-    HIDE : 'WMEJumpMapsHideWindow',
-    TOP  : 'WMEJumpMapsTopOffset',
-    LEFT : 'WMEJumpMapsLeftOffset',
+    LINK: 'WMEJumpMapsLink',
+    HIDE: 'WMEJumpMapsHideWindow',
+    TOP: 'WMEJumpMapsTopOffset',
+    LEFT: 'WMEJumpMapsLeftOffset',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -83,9 +83,9 @@ proj4.defs([
 let sdk = null;
 
 let cfg = {
-    hideWindow : false,
-    topOffset  : DEFAULT_TOP,
-    leftOffset : DEFAULT_LEFT,
+    hideWindow: false,
+    topOffset: DEFAULT_TOP,
+    leftOffset: DEFAULT_LEFT,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -95,34 +95,34 @@ let cfg = {
 // ═══════════════════════════════════════════════════════════════
 const DEFAULT_MAPS = {
     // Waze internal — never shown in the bar, used only for link building
-    _map_WME    : { save:0, title:'Open in WME',               name:'[WME]',   template:'{{wmebase}}/editor/?env=row&zoomLevel={{zoom}}&lat={{lat}}&lon={{lon}}' },
+    _map_WME: { save: 0, title: 'Open in WME', name: '[WME]', template: '{{wmebase}}/editor/?env=row&zoomLevel={{zoom}}&lat={{lat}}&lon={{lon}}' },
     // Third-party — default ON
-    _map_OSM    : { save:1, title:'Open in OSM',               name:'[OSM]',   template:'http://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}' },
-    _map_BING   : { save:1, title:'Open in Bing Map',          name:'[Bing]',  template:'http://www.bing.com/maps/?v=2&cp={{lat}}~{{lon}}&lvl={{zoom}}&dir=0&sty=h&form=LMLTEW' },
-    _map_HERE   : { save:1, title:'Open in Here Map',          name:'[Here]',  template:'https://wego.here.com/?map={{lat}},{{lon}},{{zoom}},normal' },
-    _map_AM     : { save:1, title:'Open in Apple Map',         name:'[AM]',    template:'http://maps.apple.com/?ll={{lat}},{{lon}}&z={{zoom}}' },
-    _map_MRY    : { save:1, title:'Open in Mapillary',         name:'[MRY]',   template:'https://www.mapillary.com/app/?lat={{lat}}&lng={{lon}}&z={{zoom}}' },
-    _map_WM     : { save:1, title:'Open in Wikimapia',         name:'[WM]',    template:'http://wikimapia.org/#lang=ru&lat={{lat}}&lon={{lon}}&z={{zoom}}&m=b' },
-    _map_VCUA   : { save:1, title:'Open in maps.visicom.ua',   name:'[VCUA]',  template:'https://maps.visicom.ua/c/{{lon}},{{lat}},{{zoom}}?lang=uk' },
-    _map_SPRO   : { save:1, title:'Open in satellites.pro',    name:'[SPRO]',  template:'https://satellites.pro/#{{lat}},{{lon}},{{zoom}}' },
-    _map_KADUA  : { save:0, title:'Open in Kadastr UA',        name:'[KADUA]', template:'https://map.land.gov.ua/?cc={{lon}},{{lat}}&z={{zoom}}&l=kadastr' },
-    _map_CAMUA  : { save:1, title:'Open in Camera Ukraine',    name:'[CamUA]', template:'https://checker.waze.com.ua/camera/?lat={{lat}}&lon={{lon}}&zoomLevel={{zoom}}' },
+    _map_OSM: { save: 1, title: 'Open in OSM', name: '[OSM]', template: 'http://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}' },
+    _map_BING: { save: 1, title: 'Open in Bing Map', name: '[Bing]', template: 'http://www.bing.com/maps/?v=2&cp={{lat}}~{{lon}}&lvl={{zoom}}&dir=0&sty=h&form=LMLTEW' },
+    _map_HERE: { save: 1, title: 'Open in Here Map', name: '[Here]', template: 'https://wego.here.com/?map={{lat}},{{lon}},{{zoom}},normal' },
+    _map_AM: { save: 1, title: 'Open in Apple Map', name: '[AM]', template: 'http://maps.apple.com/?ll={{lat}},{{lon}}&z={{zoom}}' },
+    _map_MRY: { save: 1, title: 'Open in Mapillary', name: '[MRY]', template: 'https://www.mapillary.com/app/?lat={{lat}}&lng={{lon}}&z={{zoom}}' },
+    _map_WM: { save: 1, title: 'Open in Wikimapia', name: '[WM]', template: 'http://wikimapia.org/#lang=ru&lat={{lat}}&lon={{lon}}&z={{zoom}}&m=b' },
+    _map_VCUA: { save: 1, title: 'Open in maps.visicom.ua', name: '[VCUA]', template: 'https://maps.visicom.ua/c/{{lon}},{{lat}},{{zoom}}?lang=uk' },
+    _map_SPRO: { save: 1, title: 'Open in satellites.pro', name: '[SPRO]', template: 'https://satellites.pro/#{{lat}},{{lon}},{{zoom}}' },
+    _map_KADUA: { save: 0, title: 'Open in Kadastr UA', name: '[KADUA]', template: 'https://map.land.gov.ua/?cc={{lon}},{{lat}}&z={{zoom}}&l=kadastr' },
+    _map_CAMUA: { save: 1, title: 'Open in Camera Ukraine', name: '[CamUA]', template: 'https://checker.waze.com.ua/camera/?lat={{lat}}&lon={{lon}}&zoomLevel={{zoom}}' },
     // Third-party — default OFF
-    _map_Google : { save:0, title:'Open in Google Map',        name:'[G]',     template:'http://www.google.com/maps/?ll={{lat}}%2C{{lon}}&z={{zoom}}&t=m' },
-    _map_YM     : { save:0, title:'Open in Yandex Map',        name:'[YM]',    template:'http://maps.yandex.ru/?ll={{lon}}%2C{{lat}}&z={{zoom}}&l=pmap%2Cstv' },
-    _map_NM     : { save:0, title:'Open in Yandex Narod',      name:'[NYM]',   template:'https://n.maps.yandex.ru/?ll={{lon}}%2C{{lat}}&z={{zoom}}&l=pmap' },
-    _map_2GIS   : { save:0, title:'Open in 2GIS',              name:'[2Gis]',  template:'http://2gis.ru/{{city}}?m={{lon}}%2C{{lat}}%2F{{zoom}}' },
-    _map_KVIEW  : { save:0, title:'Open in KartaView',         name:'[KVIEW]', template:'http://kartaview.org/map/@{{lat}},{{lon}},{{zoom}}z' },
-    _map_MPLIO  : { save:0, title:'Open in Mapilio',           name:'[MPLIO]', template:'https://mapilio.com/app?lat={{lat}}&lng={{lon}}&zoom={{zoom}}' },
-    _map_SC     : { save:0, title:'Open in mapcam.info',       name:'[SC]',    template:'http://mapcam.info/speedcam/?lng={{lon}}&lat={{lat}}&z={{zoom}}&t=OSM' },
-    _map_SC2    : { save:0, title:'Open in SpeedCamOnLine',    name:'[SCO]',   template:'http://speedcamonline.ru/view/Rus/{{lat}}/{{lon}}/{{zoom}}' },
-    _map_RE     : { save:0, title:'Open in RosReestr',         name:'[RE]',    template:'https://pkk.rosreestr.ru/#/search/{{lat}},{{lon}}/{{zoom}}' },
-    _map_BP     : { save:0, title:'Open in benzin-price.ru',   name:'[BP]',    template:'http://www.benzin-price.ru/m/index.php?lat={{lat}}&lon={{lon}}&distance=1' },
-    _map_BM     : { save:0, title:'Open in Baltic Maps',       name:'[BM]',    template:'https://balticmaps.eu/lv/c___{{lon}}-{{lat}}-{{zoom}}/bl___cl' },
-    _map_AMR    : { save:0, title:'Open in atlas.mos.ru',      name:'[AMR]',   template:'https://atlas.mos.ru/?lang=ru&z={{zoom}}&ll={{lon}}%2C{{lat}}' },
-    _map_RBASE  : { save:0, title:'Open in radarbase.info',    name:'[RBASE]', template:'https://radarbase.info/map/actual/{{lat}}/{{lon}}/{{zoom}}' },
-    _map_RRSTR  : { save:0, title:'Open in rreestrmap.ru',     name:'[RREE]',  template:'https://rreestrmap.ru/?lat={{lat}}&lng={{lon}}&zoom={{zoom}}' },
-    _map_WMFLAB : { save:0, title:'Open in tools.wmflabs.org', name:'[WMF]',   template:'https://tools.wmflabs.org/geohack/geohack.php?params={{lat}}_N_{{lon}}_E_scale:{{zoom}}' },
+    _map_Google: { save: 0, title: 'Open in Google Map', name: '[G]', template: 'http://www.google.com/maps/?ll={{lat}}%2C{{lon}}&z={{zoom}}&t=m' },
+    _map_YM: { save: 0, title: 'Open in Yandex Map', name: '[YM]', template: 'http://maps.yandex.ru/?ll={{lon}}%2C{{lat}}&z={{zoom}}&l=pmap%2Cstv' },
+    _map_NM: { save: 0, title: 'Open in Yandex Narod', name: '[NYM]', template: 'https://n.maps.yandex.ru/?ll={{lon}}%2C{{lat}}&z={{zoom}}&l=pmap' },
+    _map_2GIS: { save: 0, title: 'Open in 2GIS', name: '[2Gis]', template: 'http://2gis.ru/{{city}}?m={{lon}}%2C{{lat}}%2F{{zoom}}' },
+    _map_KVIEW: { save: 0, title: 'Open in KartaView', name: '[KVIEW]', template: 'http://kartaview.org/map/@{{lat}},{{lon}},{{zoom}}z' },
+    _map_MPLIO: { save: 0, title: 'Open in Mapilio', name: '[MPLIO]', template: 'https://mapilio.com/app?lat={{lat}}&lng={{lon}}&zoom={{zoom}}' },
+    _map_SC: { save: 0, title: 'Open in mapcam.info', name: '[SC]', template: 'http://mapcam.info/speedcam/?lng={{lon}}&lat={{lat}}&z={{zoom}}&t=OSM' },
+    _map_SC2: { save: 0, title: 'Open in SpeedCamOnLine', name: '[SCO]', template: 'http://speedcamonline.ru/view/Rus/{{lat}}/{{lon}}/{{zoom}}' },
+    _map_RE: { save: 0, title: 'Open in RosReestr', name: '[RE]', template: 'https://pkk.rosreestr.ru/#/search/{{lat}},{{lon}}/{{zoom}}' },
+    _map_BP: { save: 0, title: 'Open in benzin-price.ru', name: '[BP]', template: 'http://www.benzin-price.ru/m/index.php?lat={{lat}}&lon={{lon}}&distance=1' },
+    _map_BM: { save: 0, title: 'Open in Baltic Maps', name: '[BM]', template: 'https://balticmaps.eu/lv/c___{{lon}}-{{lat}}-{{zoom}}/bl___cl' },
+    _map_AMR: { save: 0, title: 'Open in atlas.mos.ru', name: '[AMR]', template: 'https://atlas.mos.ru/?lang=ru&z={{zoom}}&ll={{lon}}%2C{{lat}}' },
+    _map_RBASE: { save: 0, title: 'Open in radarbase.info', name: '[RBASE]', template: 'https://radarbase.info/map/actual/{{lat}}/{{lon}}/{{zoom}}' },
+    _map_RRSTR: { save: 0, title: 'Open in rreestrmap.ru', name: '[RREE]', template: 'https://rreestrmap.ru/?lat={{lat}}&lng={{lon}}&zoom={{zoom}}' },
+    _map_WMFLAB: { save: 0, title: 'Open in tools.wmflabs.org', name: '[WMF]', template: 'https://tools.wmflabs.org/geohack/geohack.php?params={{lat}}_N_{{lon}}_E_scale:{{zoom}}' },
 };
 
 let mapDefs = {};
@@ -138,13 +138,13 @@ function lsGet(key, type, def) {
 }
 
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
-function isJson(s)    { try { JSON.parse(s); return true; } catch { return false; } }
+function isJson(s) { try { JSON.parse(s); return true; } catch { return false; } }
 
 function qs(url, name) {
     const pos = url.indexOf(name + '=');
     if (pos < 0) return null;
     const start = pos + name.length + 1;
-    const end   = url.indexOf('&', start);
+    const end = url.indexOf('&', start);
     return end < 0 ? url.slice(start) : url.slice(start, end);
 }
 
@@ -183,7 +183,7 @@ function getLocationType() {
 function getLLZ() {
     let lat = 0, lon = 0, zoom = 0, city = '';
     const href = location.href;
-    const loc  = getLocationType();
+    const loc = getLocationType();
 
     switch (loc) {
         case 'waze': {
@@ -213,15 +213,29 @@ function getLLZ() {
             const at = href.indexOf('@');
             if (at >= 0) {
                 const gl = href.slice(at + 1).split(',');
-                lat = parseFloat(gl[0]); lon = parseFloat(gl[1]);
-                // Handle both 'z' (zoom level) and 'm' (meters per pixel) formats
-                const zoomStr = gl[2];
-                if (zoomStr.endsWith('m')) {
-                    // Convert meters to Google zoom level
-                    const meters = parseFloat(zoomStr);
-                    zoom = Math.round(Math.log2(156543.5 / meters));
+                lat = parseFloat(gl[0]);
+                lon = parseFloat(gl[1]);
+                const z3 = gl[2] || '';
+                if (z3.endsWith('z')) {
+                    // Normal view: "20z" → zoom level directly
+                    zoom = parseInt(z3);
+                } else if (z3.endsWith('m')) {
+                    // Satellite/topo view: "349m" = viewport height in meters
+                    const meters = parseFloat(z3);
+                    const M2Z = [
+                        [1, 51510000], [2, 25755000], [3, 12877500], [4, 6438750], [5, 3219375],
+                        [6, 1609687], [7, 804844], [8, 402422], [9, 201211], [10, 100605],
+                        [11, 50303], [12, 25151], [13, 12576], [14, 6288], [15, 3144],
+                        [16, 1572], [17, 786], [18, 393], [19, 196], [20, 98], [21, 49], [22, 25], [23, 12],
+                    ];
+                    zoom = M2Z[M2Z.length - 1][0];
+                    for (let i = 0; i < M2Z.length - 1; i++) {
+                        if (meters <= M2Z[i][1] && meters >= M2Z[i + 1][1]) {
+                            zoom = M2Z[i][0]; break;
+                        }
+                    }
                 } else {
-                    zoom = parseInt(zoomStr);
+                    zoom = parseInt(z3);
                 }
             } else {
                 lat = parseFloat(qs(href, 'y')); lon = parseFloat(qs(href, 'x')); zoom = parseInt(qs(href, 'z'));
@@ -350,29 +364,29 @@ function convertOther2WME(llz) {
 }
 
 const CITIES_2GIS = [
-    {c:'moscow',       lon0:36.763,lat0:56.108,lon1:38.221,lat1:55.105},
-    {c:'spb',          lon0:29.413,lat0:60.292,lon1:31.025,lat1:59.536},
-    {c:'kyiv',         lon0:30.046,lat0:50.653,lon1:30.680,lat1:50.148},
-    {c:'novosibirsk',  lon0:82.511,lat0:55.248,lon1:83.392,lat1:54.554},
-    {c:'ekaterinburg', lon0:60.237,lat0:57.035,lon1:60.939,lat1:56.600},
-    {c:'kazan',        lon0:48.295,lat0:55.997,lon1:49.531,lat1:55.568},
-    {c:'n_novgorod',   lon0:43.301,lat0:56.476,lon1:44.251,lat1:56.074},
-    {c:'chelyabinsk',  lon0:61.190,lat0:55.318,lon1:61.740,lat1:54.992},
-    {c:'samara',       lon0:49.780,lat0:53.712,lon1:50.522,lat1:53.040},
-    {c:'omsk',         lon0:72.888,lat0:55.416,lon1:73.768,lat1:54.787},
-    {c:'rostov',       lon0:39.359,lat0:47.367,lon1:39.922,lat1:47.054},
-    {c:'ufa',          lon0:55.714,lat0:54.923,lon1:56.311,lat1:54.479},
-    {c:'volgograd',    lon0:43.973,lat0:48.926,lon1:44.928,lat1:48.315},
-    {c:'perm',         lon0:55.615,lat0:58.243,lon1:56.658,lat1:57.687},
-    {c:'krasnodar',    lon0:38.653,lat0:45.264,lon1:39.376,lat1:44.945},
-    {c:'voronezh',     lon0:38.990,lat0:51.911,lon1:39.612,lat1:51.476},
-    {c:'krasnoyarsk',  lon0:92.131,lat0:56.307,lon1:93.595,lat1:55.813},
-    {c:'khabarovsk',   lon0:134.878,lat0:48.605,lon1:135.255,lat1:48.290},
-    {c:'vladivostok',  lon0:131.563,lat0:43.614,lon1:132.340,lat1:42.805},
-    {c:'almaty',       lon0:76.720,lat0:43.467,lon1:77.104,lat1:43.110},
-    {c:'astana',       lon0:71.122,lat0:51.372,lon1:71.837,lat1:50.934},
-    {c:'sochi',        lon0:38.939,lat0:44.354,lon1:40.486,lat1:43.364},
-    {c:'novorossiysk', lon0:36.942,lat0:45.221,lon1:38.668,lat1:44.308},
+    { c: 'moscow', lon0: 36.763, lat0: 56.108, lon1: 38.221, lat1: 55.105 },
+    { c: 'spb', lon0: 29.413, lat0: 60.292, lon1: 31.025, lat1: 59.536 },
+    { c: 'kyiv', lon0: 30.046, lat0: 50.653, lon1: 30.680, lat1: 50.148 },
+    { c: 'novosibirsk', lon0: 82.511, lat0: 55.248, lon1: 83.392, lat1: 54.554 },
+    { c: 'ekaterinburg', lon0: 60.237, lat0: 57.035, lon1: 60.939, lat1: 56.600 },
+    { c: 'kazan', lon0: 48.295, lat0: 55.997, lon1: 49.531, lat1: 55.568 },
+    { c: 'n_novgorod', lon0: 43.301, lat0: 56.476, lon1: 44.251, lat1: 56.074 },
+    { c: 'chelyabinsk', lon0: 61.190, lat0: 55.318, lon1: 61.740, lat1: 54.992 },
+    { c: 'samara', lon0: 49.780, lat0: 53.712, lon1: 50.522, lat1: 53.040 },
+    { c: 'omsk', lon0: 72.888, lat0: 55.416, lon1: 73.768, lat1: 54.787 },
+    { c: 'rostov', lon0: 39.359, lat0: 47.367, lon1: 39.922, lat1: 47.054 },
+    { c: 'ufa', lon0: 55.714, lat0: 54.923, lon1: 56.311, lat1: 54.479 },
+    { c: 'volgograd', lon0: 43.973, lat0: 48.926, lon1: 44.928, lat1: 48.315 },
+    { c: 'perm', lon0: 55.615, lat0: 58.243, lon1: 56.658, lat1: 57.687 },
+    { c: 'krasnodar', lon0: 38.653, lat0: 45.264, lon1: 39.376, lat1: 44.945 },
+    { c: 'voronezh', lon0: 38.990, lat0: 51.911, lon1: 39.612, lat1: 51.476 },
+    { c: 'krasnoyarsk', lon0: 92.131, lat0: 56.307, lon1: 93.595, lat1: 55.813 },
+    { c: 'khabarovsk', lon0: 134.878, lat0: 48.605, lon1: 135.255, lat1: 48.290 },
+    { c: 'vladivostok', lon0: 131.563, lat0: 43.614, lon1: 132.340, lat1: 42.805 },
+    { c: 'almaty', lon0: 76.720, lat0: 43.467, lon1: 77.104, lat1: 43.110 },
+    { c: 'astana', lon0: 71.122, lat0: 51.372, lon1: 71.837, lat1: 50.934 },
+    { c: 'sochi', lon0: 38.939, lat0: 44.354, lon1: 40.486, lat1: 43.364 },
+    { c: 'novorossiysk', lon0: 36.942, lat0: 45.221, lon1: 38.668, lat1: 44.308 },
 ];
 
 function convertWME2Other(id, llz) {
@@ -399,13 +413,13 @@ function convertWME2Other(id, llz) {
                 const sec = Math.round(((d - deg) * 60 - min) * 60 * 10) / 10;
                 return `${deg}_${min}_${sec}`;
             };
-            llz.lat  = deg2dms(llz.lat);
-            llz.lon  = deg2dms(llz.lon);
+            llz.lat = deg2dms(llz.lat);
+            llz.lon = deg2dms(llz.lon);
             llz.zoom = Math.pow(2, 12 - llz.zoom) * 100000;
             break;
         }
-        case '_map_AMR':   llz.zoom = llz.zoom >= 7 ? 10 : llz.zoom + 4; break;
-        case '_map_MRY':   llz.zoom = Math.max(0, llz.zoom - 1); break;
+        case '_map_AMR': llz.zoom = llz.zoom >= 7 ? 10 : llz.zoom + 4; break;
+        case '_map_MRY': llz.zoom = Math.max(0, llz.zoom - 1); break;
         case '_map_KVIEW': if (llz.zoom > 18) llz.zoom = 18; break;
         case '_map_KADUA': {
             const c = proj4('EPSG:4326', 'EPSG:3857', [llz.lon, llz.lat]);
@@ -436,10 +450,10 @@ function jumpToMap(mapId) {
     const wmeBase = `https://${location.hostname}`;
     let url = def.template
         .replace('{{wmebase}}', wmeBase)
-        .replace('{{city}}',   llz.city || '')
-        .replace('{{lon}}',    llz.lon)
-        .replace('{{lat}}',    llz.lat)
-        .replace('{{zoom}}',   llz.zoom);
+        .replace('{{city}}', llz.city || '')
+        .replace('{{lon}}', llz.lon)
+        .replace('{{lat}}', llz.lat)
+        .replace('{{zoom}}', llz.zoom);
 
     if (goingToWME) url += '&marker=yes';
     window.open(url, `_jm_${mapId}`);
@@ -468,9 +482,9 @@ function loadMapDefs() {
     const saved = JSON.parse(raw);
     for (const id of Object.keys(mapDefs)) {
         if (saved[id]) {
-            mapDefs[id].save     = 1;
-            mapDefs[id].name     = saved[id].name     ?? mapDefs[id].name;
-            mapDefs[id].title    = saved[id].title    ?? mapDefs[id].title;
+            mapDefs[id].save = 1;
+            mapDefs[id].name = saved[id].name ?? mapDefs[id].name;
+            mapDefs[id].title = saved[id].title ?? mapDefs[id].title;
             mapDefs[id].template = saved[id].template ?? mapDefs[id].template;
         }
     }
@@ -489,8 +503,8 @@ function buildFloatBar() {
         // Center on first run if no saved position
         const hasSavedPos = localStorage.getItem(LS.LEFT) && localStorage.getItem(LS.TOP);
         if (!hasSavedPos) {
-            cfg.leftOffset = Math.max(0, Math.round((window.innerWidth  - 400) / 2)) + 'px';
-            cfg.topOffset  = Math.max(0, Math.round((window.innerHeight -  30) / 2)) + 'px';
+            cfg.leftOffset = Math.max(0, Math.round((window.innerWidth - 400) / 2)) + 'px';
+            cfg.topOffset = Math.max(0, Math.round((window.innerHeight - 30) / 2)) + 'px';
         }
 
         bar.style.cssText = [
@@ -521,7 +535,7 @@ function buildFloatBar() {
         if (id === '_map_WME') continue;
         if (!def.save) continue;
         html += `<a data-jmid="${id}" title="${def.title}" `
-              + `style="cursor:pointer;text-decoration:none;color:#00547a">${def.name}</a>&nbsp;`;
+            + `style="cursor:pointer;text-decoration:none;color:#00547a">${def.name}</a>&nbsp;`;
     }
 
     bar.innerHTML = html;
@@ -539,22 +553,22 @@ function makeDraggable(el) {
 
     el.addEventListener('mousedown', e => {
         if (e.target.tagName === 'A') return;
-        drag     = true;
-        startX   = e.clientX; startY = e.clientY;
+        drag = true;
+        startX = e.clientX; startY = e.clientY;
         origLeft = parseInt(el.style.left) || 0;
-        origTop  = parseInt(el.style.top)  || 0;
+        origTop = parseInt(el.style.top) || 0;
     });
     window.addEventListener('mouseup', () => {
         if (drag) {
             localStorage.setItem(LS.LEFT, el.style.left);
-            localStorage.setItem(LS.TOP,  el.style.top);
+            localStorage.setItem(LS.TOP, el.style.top);
         }
         drag = false;
     });
     window.addEventListener('mousemove', e => {
         if (!drag) return;
         el.style.left = (origLeft + e.clientX - startX) + 'px';
-        el.style.top  = (origTop  + e.clientY - startY) + 'px';
+        el.style.top = (origTop + e.clientY - startY) + 'px';
         e.preventDefault();
     });
 }
@@ -566,7 +580,7 @@ async function buildSettingsPanel() {
     try {
         const result = await sdk.Sidebar.registerScriptTab();
         result.tabLabel.innerText = 'JM';
-        result.tabLabel.title     = `WME JumpMapsRedux ${SCRIPT_VERSION}`;
+        result.tabLabel.title = `WME JumpMapsRedux ${SCRIPT_VERSION}`;
         result.tabPane.appendChild(createSettingsDOM());
     } catch (e) {
         console.warn('[WME-JM] Sidebar.registerScriptTab() failed:', e);
@@ -577,7 +591,7 @@ function createSettingsDOM() {
     const root = document.createElement('div');
     root.style.cssText = 'padding:8px;font-family:sans-serif;font-size:12px';
     root.innerHTML = `<h4 style="margin:0 0 6px">WME JumpMapsRedux <sup>${SCRIPT_VERSION}</sup></h4>`
-                   + `<hr style="margin:4px 0">`;
+        + `<hr style="margin:4px 0">`;
 
     const hdr = document.createElement('b');
     hdr.textContent = 'Destinations:';
@@ -590,7 +604,7 @@ function createSettingsDOM() {
         row.style.margin = '3px 0';
 
         const chk = document.createElement('input');
-        chk.type    = 'checkbox';
+        chk.type = 'checkbox';
         chk.checked = !!def.save;
         chk.style.marginRight = '4px';
         chk.addEventListener('change', () => {
@@ -605,7 +619,7 @@ function createSettingsDOM() {
         lbl.appendChild(document.createTextNode(def.title));
 
         const editBtn = document.createElement('a');
-        editBtn.href        = '#';
+        editBtn.href = '#';
         editBtn.textContent = ' [edit]';
         editBtn.style.cssText = 'font-size:10px;margin-left:4px';
 
@@ -613,13 +627,13 @@ function createSettingsDOM() {
         editArea.style.cssText = 'display:none;padding:2px 0 2px 14px;font-size:11px';
 
         [
-            { label:'Name',     key:'name',     size:12 },
-            { label:'Title',    key:'title',    size:24 },
-            { label:'Template', key:'template', size:36, title:'Placeholders: {{city}} {{lon}} {{lat}} {{zoom}}' },
+            { label: 'Name', key: 'name', size: 12 },
+            { label: 'Title', key: 'title', size: 24 },
+            { label: 'Template', key: 'template', size: 36, title: 'Placeholders: {{city}} {{lon}} {{lat}} {{zoom}}' },
         ].forEach(f => {
             const inp = document.createElement('input');
             inp.value = def[f.key];
-            inp.size  = f.size;
+            inp.size = f.size;
             if (f.title) inp.title = f.title;
             inp.style.marginLeft = '4px';
             inp.addEventListener('change', () => {
@@ -644,7 +658,7 @@ function createSettingsDOM() {
         root.appendChild(row);
     }
 
-    root.appendChild(Object.assign(document.createElement('hr'), { style:'margin:6px 0' }));
+    root.appendChild(Object.assign(document.createElement('hr'), { style: 'margin:6px 0' }));
     const optHdr = document.createElement('b');
     optHdr.textContent = 'Options:';
     root.appendChild(optHdr);
@@ -652,8 +666,8 @@ function createSettingsDOM() {
     // Hide floating bar toggle
     {
         const wrap = document.createElement('div');
-        const c    = document.createElement('input');
-        c.type    = 'checkbox';
+        const c = document.createElement('input');
+        c.type = 'checkbox';
         c.checked = cfg.hideWindow;
         c.style.marginRight = '4px';
         c.addEventListener('change', () => {
@@ -692,11 +706,11 @@ function createSettingsDOM() {
         localStorage.removeItem(LS.TOP);
         const bar = document.getElementById(FLOAT_ID);
         if (bar) {
-            const l = Math.max(0, Math.round((window.innerWidth  - 400) / 2)) + 'px';
-            const t = Math.max(0, Math.round((window.innerHeight -  30) / 2)) + 'px';
+            const l = Math.max(0, Math.round((window.innerWidth - 400) / 2)) + 'px';
+            const t = Math.max(0, Math.round((window.innerHeight - 30) / 2)) + 'px';
             bar.style.left = l; bar.style.top = t;
             localStorage.setItem(LS.LEFT, l);
-            localStorage.setItem(LS.TOP,  t);
+            localStorage.setItem(LS.TOP, t);
         }
     });
 
@@ -722,8 +736,8 @@ function insertFloatingIcon(loc) {
     if (document.getElementById('wmejm-ext-btn')) return;
 
     let savedPos = null;
-    try { savedPos = JSON.parse(localStorage.getItem(extIconLsKey(loc))); } catch {}
-    const initRight  = (savedPos && savedPos.right  != null) ? savedPos.right  + 'px' : '16px';
+    try { savedPos = JSON.parse(localStorage.getItem(extIconLsKey(loc))); } catch { }
+    const initRight = (savedPos && savedPos.right != null) ? savedPos.right + 'px' : '16px';
     const initBottom = (savedPos && savedPos.bottom != null) ? savedPos.bottom + 'px' : '80px';
 
     const btn = document.createElement('div');
@@ -747,7 +761,7 @@ function insertFloatingIcon(loc) {
     btn.addEventListener('mousedown', e => {
         dragging = true; moved = false;
         startX = e.clientX; startY = e.clientY;
-        startRight  = parseInt(btn.style.right)  || 16;
+        startRight = parseInt(btn.style.right) || 16;
         startBottom = parseInt(btn.style.bottom) || 80;
         btn.style.boxShadow = '0 4px 12px rgba(0,0,0,.5)';
         btn.style.transition = 'none';
@@ -757,7 +771,7 @@ function insertFloatingIcon(loc) {
     window.addEventListener('mousemove', e => {
         if (!dragging) return;
         moved = true;
-        btn.style.right  = Math.max(0, startRight  - (e.clientX - startX)) + 'px';
+        btn.style.right = Math.max(0, startRight - (e.clientX - startX)) + 'px';
         btn.style.bottom = Math.max(0, startBottom - (e.clientY - startY)) + 'px';
     });
 
@@ -767,7 +781,7 @@ function insertFloatingIcon(loc) {
         btn.style.boxShadow = '0 2px 6px rgba(0,0,0,.35)';
         btn.style.transition = 'box-shadow .15s';
         localStorage.setItem(extIconLsKey(loc), JSON.stringify({
-            right:  parseInt(btn.style.right),
+            right: parseInt(btn.style.right),
             bottom: parseInt(btn.style.bottom),
         }));
     });
@@ -780,8 +794,8 @@ function insertFloatingIcon(loc) {
         const url = DEFAULT_MAPS._map_WME.template
             .replace('{{wmebase}}', wmeBase)
             .replace('{{zoom}}', llz.zoom)
-            .replace('{{lat}}',  llz.lat)
-            .replace('{{lon}}',  llz.lon) + '&marker=yes';
+            .replace('{{lat}}', llz.lat)
+            .replace('{{lon}}', llz.lon) + '&marker=yes';
         window.open(url, '_jm_wme');
     });
 
@@ -829,7 +843,7 @@ function checkVersionChange() {
         'margin-left:6px',
         'padding:1px 5px',
         'background:' + (isUpdate ? '#d4edda' : '#cce5ff'),
-        'color:'       + (isUpdate ? '#155724' : '#004085'),
+        'color:' + (isUpdate ? '#155724' : '#004085'),
         'border-radius:3px',
         'font-size:10px',
         'font-weight:bold',
@@ -867,8 +881,8 @@ function initWME() {
 // ═══════════════════════════════════════════════════════════════
 (function bootstrap() {
     cfg.hideWindow = lsGet(LS.HIDE, 'bool', false);
-    cfg.topOffset  = lsGet(LS.TOP,  'str',  DEFAULT_TOP);
-    cfg.leftOffset = lsGet(LS.LEFT, 'str',  DEFAULT_LEFT);
+    cfg.topOffset = lsGet(LS.TOP, 'str', DEFAULT_TOP);
+    cfg.leftOffset = lsGet(LS.LEFT, 'str', DEFAULT_LEFT);
 
     const loc = getLocationType();
 
