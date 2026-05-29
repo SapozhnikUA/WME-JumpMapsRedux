@@ -2,7 +2,7 @@
 // @name         WME JumpMapsRedux
 // @description  Швидкі переходи з WME на інші картографічні ресурси (Bookmarks/Favorites) та навпаки — в окремому вікні. Підтримує OSM, Google, Yandex, 2GIS, Bing, Here, Apple Maps, Mapillary, Wikimapia, Visicom, satellites.pro та інші. Зберігає позицію плаваючої панелі. Не використовує та не копіює сторонні дані, не порушує інтелектуальної власності. Переписано під офіційний WME SDK v2, без залежності від WazeWrap.
 // @license      MIT
-// @version      6.1.4
+// @version      6.1.5
 // @author       skirda, alexletov, Claude (Anthropic), Kuzia
 // @include      https://*.waze.com/*editor*
 // @include      https://n.maps.yandex.ru/*
@@ -215,33 +215,52 @@ function getLLZ() {
                 const gl = href.slice(at + 1).split(',');
                 lat = parseFloat(gl[0]);
                 lon = parseFloat(gl[1]);
-                const z3 = gl[2] || '';
-                if (z3.endsWith('z')) {
-                    // Normal view: "20z" → zoom level directly
+
+                // Беремо третій елемент і відсікаємо все, що може йти після наступного слешу (наприклад, /data=...)
+                let z3 = gl[2] || '';
+                z3 = z3.split('/')[0];
+
+                if (z3.includes('z')) {
+                    // Звичайний вигляд: "20z" → zoom 20
                     zoom = parseInt(z3);
-                } else if (z3.endsWith('m')) {
-                    // Satellite/topo view: "349m" = viewport height in meters
+                } else if (z3.includes('m')) {
+                    // Супутник/топо: "349m" = висота в метрах → конвертуємо в zoom
                     const meters = parseFloat(z3);
                     const M2Z = [
                         [1, 51510000], [2, 25755000], [3, 12877500], [4, 6438750], [5, 3219375],
                         [6, 1609687], [7, 804844], [8, 402422], [9, 201211], [10, 100605],
                         [11, 50303], [12, 25151], [13, 12576], [14, 6288], [15, 3144],
-                        [16, 1572], [17, 786], [18, 393], [19, 196], [20, 98], [21, 49], [22, 25], [23, 12],
+                        [16, 1572], [17, 786], [18, 393], [19, 196], [20, 98], [21, 49], [22, 25], [23, 12]
                     ];
-                    zoom = M2Z[M2Z.length - 1][0];
-                    for (let i = 0; i < M2Z.length - 1; i++) {
-                        if (meters <= M2Z[i][1] && meters >= M2Z[i + 1][1]) {
-                            zoom = M2Z[i][0]; break;
+
+                    // Надійніший пошук: знаходимо відповідний зум за таблицею метрів
+                    zoom = 22; // дефолтне значення для дуже близького зуму
+                    for (let i = 0; i < M2Z.length; i++) {
+                        if (meters >= M2Z[i][1]) {
+                            zoom = M2Z[i][0];
+                            break;
                         }
+                    }
+                    // Якщо значення метрів менше за найменше в таблиці (12), ставимо макс зум 23
+                    if (meters < M2Z[M2Z.length - 1][1]) {
+                        zoom = 23;
                     }
                 } else {
                     zoom = parseInt(z3);
                 }
             } else {
-                lat = parseFloat(qs(href, 'y')); lon = parseFloat(qs(href, 'x')); zoom = parseInt(qs(href, 'z'));
+                lat = parseFloat(qs(href, 'y'));
+                lon = parseFloat(qs(href, 'x'));
+                zoom = parseInt(qs(href, 'z'));
             }
+
+            // Додатковий захист для Waze: якщо zoom виявився неадекватним (більше 22), 
+            // обмежуємо його максимальним робочим рівнем Waze Editor (зазвичай 22 або 20)
+            if (zoom > 22) zoom = 22;
+
             break;
         }
+
         case '2gis': {
             const f = href.split('=')[1].split('%2F');
             zoom = parseInt(f[1]);
