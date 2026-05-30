@@ -51,7 +51,10 @@ Yandex Narod, Yandex Maps, Google Maps, 2GIS, RosReestr, mapcam.info, SpeedCamOn
    - [Violentmonkey](https://violentmonkey.github.io/)
    - [Greasemonkey](https://www.greasespot.net/)
 
-2. Натисніть на кнопку "Install" на [GreasyFork](https://greasyfork.org/uk/scripts/416143) або додайте скрипт вручну з URL:
+2. <b>Натисніть кнопку «Install» в браузері GreaseMonkey/ViolentMonkey або додайте скрипт вручну за URL:
+   ```
+   https://raw.githubusercontent.com/SapozhnikUA/WME-JumpMapsRedux/main/wme-jumpmaps-redux.user.js
+   ```
    ```
    https://raw.githubusercontent.com/SapozhnikUA/WME-JumpMapsRedux/main/wme-jumpmaps-redux.user.js
    ```
