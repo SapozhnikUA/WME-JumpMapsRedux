@@ -106,7 +106,7 @@ const DEFAULT_MAPS = {
     _map_VCUA: { save: 1, title: 'Open in maps.visicom.ua', name: '[VCUA]', template: 'https://maps.visicom.ua/c/{{lon}},{{lat}},{{zoom}}?lang=uk' },
     _map_SPRO: { save: 1, title: 'Open in satellites.pro', name: '[SPRO]', template: 'https://satellites.pro/#{{lat}},{{lon}},{{zoom}}' },
     _map_KADUA: { save: 0, title: 'Open in Kadastr UA', name: '[KADUA]', template: 'https://map.land.gov.ua/?cc={{lon}},{{lat}}&z={{zoom}}&l=kadastr' },
-    _map_CAMUA: { save: 1, title: 'Open in Camera Ukraine', name: '[CamUA]', template: 'https://checker.waze.com.ua/camera/?lat={{lat}}&lon={{lon}}&zoomLevel={{zoom}}' },
+    _map_CAMUA: { save: 0, title: 'Open in Camera Ukraine', name: '[CamUA]', template: 'http://checker.waze.com.ua/camera/?lat={{lat}}&lon={{lon}}&zoomLevel={{zoom}}' },
     // Third-party — default OFF
     _map_Google: { save: 0, title: 'Open in Google Map', name: '[G]', template: 'http://www.google.com/maps/?ll={{lat}}%2C{{lon}}&z={{zoom}}&t=m' },
     _map_YM: { save: 0, title: 'Open in Yandex Map', name: '[YM]', template: 'http://maps.yandex.ru/?ll={{lon}}%2C{{lat}}&z={{zoom}}&l=pmap%2Cstv' },
